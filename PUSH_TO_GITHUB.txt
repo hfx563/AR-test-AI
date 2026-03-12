@@ -1,0 +1,36 @@
+HOW TO PUSH CHANGES TO GITHUB
+===============================
+
+Since Git command line is not installed, use GitHub Desktop:
+
+STEPS:
+------
+
+1. Open GitHub Desktop application
+
+2. It should automatically detect these changed files:
+   - app/index.html (removed smile button, added camera & music sections)
+   - app/app.js (added IP detection, camera, auto-play music with Web Audio API)
+   - app/style.css (removed celebration styles, added camera & music button styles)
+   - app/music-info.txt (new file - music setup info)
+
+3. In GitHub Desktop:
+   - Review the changes in the "Changes" tab
+   - Add a commit message like: "Added IP display, camera feature, and auto-play background music"
+   - Click "Commit to main" button
+   - Click "Push origin" button at the top
+
+4. Your changes will be live on GitHub!
+
+5. If using GitHub Pages, your site will update automatically in 1-2 minutes
+
+WHAT WAS CHANGED:
+-----------------
+✅ Removed smile button and celebration animations
+✅ Added IP address display with city and device name
+✅ Added camera toggle feature with live video
+✅ Added auto-play soothing music (Web Audio API - no external files)
+✅ Music plays automatically on page load, can be paused
+✅ All features work offline (no third-party dependencies for music)
+
+Your site is ready to deploy!

@@ -1,0 +1,39 @@
+UPLOAD THESE 3 FILES TO GITHUB
+================================
+
+I've copied the 3 updated files to this folder for easy upload.
+
+STEPS TO UPLOAD:
+----------------
+
+1. Open your GitHub repository in browser
+2. Go to the "app" folder
+3. Upload these 3 files (they will replace the old ones):
+   ✅ index.html
+   ✅ app.js
+   ✅ style.css
+
+HOW TO UPLOAD EACH FILE:
+-------------------------
+
+For index.html:
+1. In GitHub, click on "index.html" in the app folder
+2. Click the pencil icon (Edit)
+3. Select all text (Ctrl+A) and delete
+4. Open: READY_TO_UPLOAD\index.html
+5. Copy all content (Ctrl+A, Ctrl+C)
+6. Paste in GitHub (Ctrl+V)
+7. Scroll down, add message: "Updated index.html"
+8. Click "Commit changes"
+
+Repeat for app.js and style.css
+
+DONE! Your site updates in 1-2 minutes.
+
+WHAT'S NEW:
+-----------
+✅ IP address display (IP | City | Device)
+✅ Camera toggle feature
+✅ Auto-play background music
+✅ Music can be paused
+✅ Removed smile button

@@ -1,0 +1,23 @@
+BACKGROUND MUSIC SETUP INSTRUCTIONS
+====================================
+
+To add your own flute music:
+
+1. Download a free 30-second flute music file from:
+   - https://pixabay.com/music/search/flute/
+   - https://freesound.org/search/?q=flute
+   - https://incompetech.com/music/royalty-free/music.html
+
+2. Save the file as: "flute-music.mp3" 
+
+3. Place it in the "app" folder (same folder as index.html)
+
+4. The code will automatically use it!
+
+Current Setup:
+- The app tries 3 different online music sources
+- If all fail, you need to add your own file
+- Music loops continuously at 30% volume
+- Click "Play Music" button to start
+
+Recommended: Download and add your own file for best reliability!
