@@ -1086,6 +1086,41 @@ function sendMessage() {
     // Save to localStorage as backup
     localStorage.setItem('luxe-chat-backup', JSON.stringify(messages));
     
+    // Update lastMessageId to prevent clearing
+    lastMessageId = newMessage.id;
+    
+    // Display immediately with force update
+    const chatMessages = document.getElementById('chatMessages');
+    const wasScrolledToBottom = chatMessages.scrollHeight - chatMessages.scrollTop <= chatMessages.clientHeight + 50;
+    
+    chatMessages.innerHTML = '';
+    
+    messages.slice(-50).forEach(msg => {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'chat-message' + (msg.username === chatUsername ? ' own' : '');
+        
+        const time = new Date(msg.time).toLocaleTimeString('en-US', { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+        });
+        
+        messageDiv.innerHTML = `
+            <div class="chat-message-header">
+                <span class="chat-username">${escapeHtml(msg.username)}</span>
+                <span class="chat-time">${time}</span>
+            </div>
+            <div class="chat-message-text">${escapeHtml(msg.text)}</div>
+        `;
+        
+        chatMessages.appendChild(messageDiv);
+    });
+    
+    // Scroll to bottom after sending
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    
+    // Clear input
+    input.value = '';
+    
     // Try to send to server (will work if API is available)
     fetch('https://jsonkeeper.com/b/LUXE_CHAT', {
         method: 'POST',
@@ -1094,12 +1129,6 @@ function sendMessage() {
     }).catch(() => {
         console.log('Using local storage mode');
     });
-    
-    // Clear input
-    input.value = '';
-    
-    // Display immediately
-    displayMessages(messages);
 }
 
 function escapeHtml(text) {
