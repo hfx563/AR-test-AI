@@ -1,0 +1,47 @@
+HTTPS TESTING ALTERNATIVES
+==========================
+
+OPTION 1: LocalTunnel (Easiest - No Account Needed)
+----------------------------------------------------
+1. Install Node.js from: https://nodejs.org/
+2. Open Command Prompt in: Y:\AR test AI
+3. Run: npm install -g localtunnel
+4. Run: python -m http.server 8000 -d app
+5. Open NEW Command Prompt and run: lt --port 8000
+6. You'll get HTTPS URL like: https://xyz.loca.lt
+7. Open on iPhone - camera works!
+
+OPTION 2: VS Code Live Server with Port Forwarding
+---------------------------------------------------
+1. Open VS Code
+2. Install extension: "Live Server"
+3. Right-click index.html → "Open with Live Server"
+4. In VS Code, go to "Ports" tab (bottom)
+5. Right-click port → "Port Visibility" → "Public"
+6. Copy the forwarded URL (HTTPS)
+7. Open on iPhone
+
+OPTION 3: Serveo (No Installation)
+-----------------------------------
+1. Open Command Prompt in: Y:\AR test AI
+2. Run: python -m http.server 8000 -d app
+3. Open NEW Command Prompt
+4. Run: ssh -R 80:localhost:8000 serveo.net
+5. You'll get HTTPS URL
+6. Open on iPhone
+
+OPTION 4: Just Deploy to GitHub Pages (RECOMMENDED)
+----------------------------------------------------
+This is the EASIEST and PERMANENT solution:
+1. Upload files to GitHub
+2. Settings → Pages → Enable HTTPS
+3. Done! Works forever at: https://username.github.io/repo/
+
+OPTION 5: Cloudflare Tunnel (Free, No Account)
+-----------------------------------------------
+1. Download: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/
+2. Run: cloudflared tunnel --url http://localhost:8000
+3. Get HTTPS URL
+4. Open on iPhone
+
+RECOMMENDED: Just deploy to GitHub Pages - it's permanent and free!
