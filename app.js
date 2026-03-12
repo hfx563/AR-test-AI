@@ -1022,6 +1022,9 @@ function displayMessages(messages) {
     
     // Only update if there are new messages
     if (messages.length > 0 && messages[messages.length - 1].id > lastMessageId) {
+        // Save scroll position
+        const wasScrolledToBottom = chatMessages.scrollHeight - chatMessages.scrollTop <= chatMessages.clientHeight + 50;
+        
         chatMessages.innerHTML = '';
         
         messages.slice(-50).forEach(msg => {
@@ -1044,8 +1047,10 @@ function displayMessages(messages) {
             chatMessages.appendChild(messageDiv);
         });
         
-        // Scroll to bottom
-        chatMessages.scrollTop = chatMessages.scrollHeight;
+        // Only auto-scroll if user was already at bottom
+        if (wasScrolledToBottom) {
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
         
         if (messages.length > 0) {
             lastMessageId = messages[messages.length - 1].id;

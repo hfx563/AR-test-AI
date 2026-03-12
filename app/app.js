@@ -262,6 +262,31 @@ window.onload = function() {
         document.getElementById('newsModal').style.display = 'none';
     });
     
+    // Group Chat Button
+    document.getElementById('toggleChatBtn').addEventListener('click', function() {
+        document.getElementById('chatModal').style.display = 'flex';
+        initializeChat();
+    });
+    
+    // Close Chat Modal
+    document.getElementById('closeChatBtn').addEventListener('click', function() {
+        document.getElementById('chatModal').style.display = 'none';
+    });
+    
+    document.getElementById('chatModalOverlay').addEventListener('click', function() {
+        document.getElementById('chatModal').style.display = 'none';
+    });
+    
+    // Send Message Button
+    document.getElementById('sendMessageBtn').addEventListener('click', sendMessage);
+    
+    // Send message on Enter key
+    document.getElementById('chatInput').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            sendMessage();
+        }
+    });
+    
     document.getElementById('searchButton').addEventListener('click', function() {
         const cityName = document.getElementById('cityInput').value.trim();
         
@@ -968,8 +993,8 @@ function initializeChat() {
     // Load messages
     loadMessages();
     
-    // Poll for new messages every 3 seconds
-    setInterval(loadMessages, 3000);
+    // Poll for new messages every 500ms (0.5 seconds)
+    setInterval(loadMessages, 500);
 }
 
 function loadMessages() {
@@ -997,6 +1022,9 @@ function displayMessages(messages) {
     
     // Only update if there are new messages
     if (messages.length > 0 && messages[messages.length - 1].id > lastMessageId) {
+        // Save scroll position
+        const wasScrolledToBottom = chatMessages.scrollHeight - chatMessages.scrollTop <= chatMessages.clientHeight + 50;
+        
         chatMessages.innerHTML = '';
         
         messages.slice(-50).forEach(msg => {
@@ -1019,8 +1047,10 @@ function displayMessages(messages) {
             chatMessages.appendChild(messageDiv);
         });
         
-        // Scroll to bottom
-        chatMessages.scrollTop = chatMessages.scrollHeight;
+        // Only auto-scroll if user was already at bottom
+        if (wasScrolledToBottom) {
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
         
         if (messages.length > 0) {
             lastMessageId = messages[messages.length - 1].id;
@@ -1078,30 +1108,4 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// Add chat event listeners in window.onload
-document.addEventListener('DOMContentLoaded', function() {
-    // Group Chat Button
-    document.getElementById('toggleChatBtn').addEventListener('click', function() {
-        document.getElementById('chatModal').style.display = 'flex';
-        initializeChat();
-    });
-    
-    // Close Chat Modal
-    document.getElementById('closeChatBtn').addEventListener('click', function() {
-        document.getElementById('chatModal').style.display = 'none';
-    });
-    
-    document.getElementById('chatModalOverlay').addEventListener('click', function() {
-        document.getElementById('chatModal').style.display = 'none';
-    });
-    
-    // Send Message Button
-    document.getElementById('sendMessageBtn').addEventListener('click', sendMessage);
-    
-    // Send message on Enter key
-    document.getElementById('chatInput').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            sendMessage();
-        }
-    });
-});
+
