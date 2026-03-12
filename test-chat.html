@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Chat Test - 2 Users</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        h1 {
+            text-align: center;
+            color: white;
+            margin-bottom: 20px;
+            font-size: 32px;
+        }
+        
+        .info-banner {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .info-banner h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        
+        .info-banner p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #4caf50;
+            animation: pulse 2s infinite;
+            margin-right: 5px;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .users-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .user-panel {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+        
+        .user-header {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 15px;
+            text-align: center;
+        }
+        
+        .user-header h2 {
+            font-size: 20px;
+            margin-bottom: 5px;
+        }
+        
+        .user-header .username {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        .chat-messages {
+            height: 400px;
+            overflow-y: auto;
+            padding: 15px;
+            background: #f5f5f5;
+        }
+        
+        .chat-message {
+            margin-bottom: 12px;
+            animation: slideIn 0.3s ease;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .chat-message-header {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+        
+        .chat-username {
+            font-weight: 600;
+            color: #667eea;
+        }
+        
+        .chat-time {
+            color: #999;
+        }
+        
+        .chat-message-text {
+            background: white;
+            padding: 10px 15px;
+            border-radius: 12px;
+            font-size: 14px;
+            line-height: 1.5;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            max-width: 85%;
+        }
+        
+        .chat-message.own .chat-message-text {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            margin-left: auto;
+        }
+        
+        .chat-input-container {
+            display: flex;
+            gap: 10px;
+            padding: 15px;
+            background: white;
+            border-top: 2px solid #eee;
+        }
+        
+        .chat-input {
+            flex: 1;
+            border: 2px solid #eee;
+            border-radius: 20px;
+            padding: 10px 15px;
+            font-size: 14px;
+            outline: none;
+        }
+        
+        .chat-input:focus {
+            border-color: #667eea;
+        }
+        
+        .send-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        .send-btn:hover {
+            background: #764ba2;
+            transform: scale(1.05);
+        }
+        
+        .chat-system-message {
+            text-align: center;
+            color: #999;
+            font-size: 13px;
+            font-style: italic;
+            padding: 20px;
+        }
+        
+        .controls {
+            max-width: 1400px;
+            margin: 20px auto 0;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        
+        .control-btn {
+            background: white;
+            color: #667eea;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        .control-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .control-btn.danger {
+            background: #f44336;
+            color: white;
+        }
+        
+        @media (max-width: 768px) {
+            .users-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>🔴 LIVE Real-Time Chat Test</h1>
+    
+    <div class="info-banner">
+        <h3><span class="status-indicator"></span>Real-Time Sync Active</h3>
+        <p><strong>Polling:</strong> Every 2 seconds | <strong>API:</strong> JSONKeeper | <strong>Storage:</strong> localStorage + Server</p>
+        <p><strong>Instructions:</strong> Type in either panel and watch messages appear in BOTH panels in real-time!</p>
+    </div>
+    
+    <div class="users-grid">
+        <!-- User 1 -->
+        <div class="user-panel">
+            <div class="user-header">
+                <h2>👤 User 1</h2>
+                <div class="username">Alice</div>
+            </div>
+            <div class="chat-messages" id="messages1"></div>
+            <div class="chat-input-container">
+                <input type="text" id="input1" placeholder="Type as Alice..." class="chat-input">
+                <button onclick="send(1)" class="send-btn">Send</button>
+            </div>
+        </div>
+        
+        <!-- User 2 -->
+        <div class="user-panel">
+            <div class="user-header">
+                <h2>👤 User 2</h2>
+                <div class="username">Bob</div>
+            </div>
+            <div class="chat-messages" id="messages2"></div>
+            <div class="chat-input-container">
+                <input type="text" id="input2" placeholder="Type as Bob..." class="chat-input">
+                <button onclick="send(2)" class="send-btn">Send</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="controls">
+        <button class="control-btn" onclick="autoTest()">🤖 Auto Test (5 messages)</button>
+        <button class="control-btn danger" onclick="clearAll()">🗑️ Clear All Messages</button>
+        <button class="control-btn" onclick="location.reload()">🔄 Refresh</button>
+    </div>
+    
+    <script>
+        const API_URL = 'https://jsonkeeper.com/b/LUXE_CHAT';
+        const STORAGE_KEY = 'luxe-travel-chat-messages';
+        const POLL_INTERVAL = 2000;
+        
+        let messages = [];
+        let polling = null;
+        const users = ['Alice', 'Bob'];
+        
+        // Initialize
+        function init() {
+            loadMessages();
+            startPolling();
+            
+            // Enter key listeners
+            document.getElementById('input1').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') send(1);
+            });
+            document.getElementById('input2').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') send(2);
+            });
+        }
+        
+        // Load messages from server
+        function loadMessages() {
+            fetch(API_URL)
+                .then(r => r.json())
+                .then(data => {
+                    if (data && data.messages) {
+                        messages = data.messages;
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+                        render();
+                    }
+                })
+                .catch(() => {
+                    const local = localStorage.getItem(STORAGE_KEY);
+                    if (local) {
+                        messages = JSON.parse(local);
+                        render();
+                    }
+                });
+        }
+        
+        // Start real-time polling
+        function startPolling() {
+            if (polling) clearInterval(polling);
+            polling = setInterval(loadMessages, POLL_INTERVAL);
+        }
+        
+        // Send message
+        function send(userNum) {
+            const input = document.getElementById('input' + userNum);
+            const text = input.value.trim();
+            
+            if (!text) return;
+            
+            input.value = '';
+            
+            const msg = {
+                id: Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+                username: users[userNum - 1],
+                text: text,
+                time: Date.now()
+            };
+            
+            messages.push(msg);
+            
+            if (messages.length > 100) {
+                messages = messages.slice(-100);
+            }
+            
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+            render();
+            
+            // Upload to server
+            fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ messages: messages })
+            })
+            .then(() => {
+                console.log('✅ Synced to server');
+                setTimeout(loadMessages, 500);
+            })
+            .catch(() => console.log('⚠️ Local only'));
+        }
+        
+        // Render messages
+        function render() {
+            renderFor(1, 'Alice');
+            renderFor(2, 'Bob');
+        }
+        
+        function renderFor(userNum, username) {
+            const container = document.getElementById('messages' + userNum);
+            
+            if (messages.length === 0) {
+                container.innerHTML = '<div class="chat-system-message">No messages yet. Start chatting! 👋</div>';
+                return;
+            }
+            
+            const wasBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 50;
+            
+            container.innerHTML = '';
+            
+            messages.slice(-50).forEach(msg => {
+                const div = document.createElement('div');
+                div.className = 'chat-message' + (msg.username === username ? ' own' : '');
+                
+                const time = new Date(msg.time).toLocaleTimeString('en-US', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                
+                div.innerHTML = `
+                    <div class="chat-message-header">
+                        <span class="chat-username">${escape(msg.username)}</span>
+                        <span class="chat-time">${time}</span>
+                    </div>
+                    <div class="chat-message-text">${escape(msg.text)}</div>
+                `;
+                
+                container.appendChild(div);
+            });
+            
+            if (wasBottom) {
+                setTimeout(() => container.scrollTop = container.scrollHeight, 50);
+            }
+        }
+        
+        function escape(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Auto test
+        function autoTest() {
+            const testMsgs = [
+                { user: 1, text: 'Hey Bob! How are you?' },
+                { user: 2, text: 'Hi Alice! I\'m great, thanks!' },
+                { user: 1, text: 'Planning any trips soon?' },
+                { user: 2, text: 'Yes! Thinking about Paris 🗼' },
+                { user: 1, text: 'That sounds amazing! 🎉' }
+            ];
+            
+            let delay = 0;
+            testMsgs.forEach(msg => {
+                setTimeout(() => {
+                    document.getElementById('input' + msg.user).value = msg.text;
+                    send(msg.user);
+                }, delay);
+                delay += 1500;
+            });
+        }
+        
+        // Clear all
+        function clearAll() {
+            if (confirm('Clear all messages for everyone?')) {
+                messages = [];
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+                fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ messages: [] })
+                }).then(() => location.reload());
+            }
+        }
+        
+        // Start
+        window.onload = init;
+    </script>
+</body>
+</html>

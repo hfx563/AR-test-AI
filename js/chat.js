@@ -1,72 +1,197 @@
-// Group Chat Module
+// Group Chat Module - Real-time Live Chat
 let chatUsername = '';
-let lastMessageId = 0;
-let messagePolling = null;
-let isInitialized = false;
+let chatMessages = [];
+let isPolling = false;
+let pollInterval = null;
+const CHAT_API_URL = 'https://jsonkeeper.com/b/LUXE_CHAT';
+const CHAT_STORAGE_KEY = 'luxe-travel-chat-messages';
+const CHAT_USER_KEY = 'luxe-travel-chat-username';
+const POLL_INTERVAL = 2000; // Poll every 2 seconds for real-time feel
 
-function initializeChat() {
-    // Only initialize once per session
-    if (isInitialized) {
-        return;
-    }
-    isInitialized = true;
+// Initialize chat when modal opens
+function initChat() {
+    document.getElementById('toggleChatBtn').addEventListener('click', openChat);
+    document.getElementById('closeChatBtn').addEventListener('click', closeChat);
+    document.getElementById('chatModalOverlay').addEventListener('click', closeChat);
+    document.getElementById('sendMessageBtn').addEventListener('click', sendChatMessage);
     
-    chatUsername = localStorage.getItem('chatUsername');
-    if (!chatUsername) {
-        chatUsername = prompt('Enter your name for chat:') || 'Traveler' + Math.floor(Math.random() * 1000);
-        localStorage.setItem('chatUsername', chatUsername);
-    }
-    
-    // Load messages immediately
-    loadMessages();
-    
-    // Clear any existing polling
-    if (messagePolling) {
-        clearInterval(messagePolling);
-    }
-    
-    // Start polling for new messages every 3 seconds (reduced from 2 for better performance)
-    messagePolling = setInterval(loadMessages, 3000);
+    document.getElementById('chatInput').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendChatMessage();
+        }
+    });
 }
 
-function loadMessages() {
-    fetch(`https://api.allorigins.win/raw?url=https://jsonkeeper.com/b/LUXE_CHAT`)
-        .then(response => response.json())
+function openChat() {
+    // Get or create username
+    chatUsername = localStorage.getItem(CHAT_USER_KEY);
+    if (!chatUsername) {
+        chatUsername = prompt('Enter your name for chat:');
+        if (!chatUsername || chatUsername.trim() === '') {
+            chatUsername = 'Traveler' + Math.floor(Math.random() * 9999);
+        }
+        chatUsername = chatUsername.trim();
+        localStorage.setItem(CHAT_USER_KEY, chatUsername);
+    }
+    
+    // Show modal
+    document.getElementById('chatModal').style.display = 'flex';
+    
+    // Load messages immediately from server
+    syncMessagesFromServer();
+    
+    // Start real-time polling
+    if (!isPolling) {
+        isPolling = true;
+        pollInterval = setInterval(syncMessagesFromServer, POLL_INTERVAL);
+    }
+}
+
+function closeChat() {
+    document.getElementById('chatModal').style.display = 'none';
+    
+    // Stop polling when chat is closed
+    if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+        isPolling = false;
+    }
+}
+
+function syncMessagesFromServer() {
+    // Fetch latest messages from server
+    fetch(CHAT_API_URL)
+        .then(response => {
+            if (!response.ok) throw new Error('Server unavailable');
+            return response.json();
+        })
         .then(data => {
-            const messages = data.messages || [];
-            displayMessages(messages, false);
+            if (data && data.messages && Array.isArray(data.messages)) {
+                const serverMessages = data.messages;
+                
+                // Check if we have new messages
+                const hasNewMessages = serverMessages.length !== chatMessages.length ||
+                    JSON.stringify(serverMessages) !== JSON.stringify(chatMessages);
+                
+                if (hasNewMessages) {
+                    chatMessages = serverMessages;
+                    saveToLocalStorage();
+                    renderMessages();
+                }
+            } else {
+                // No messages on server, load from localStorage
+                loadFromLocalStorage();
+            }
         })
         .catch(error => {
-            console.error('Error loading messages:', error);
-            const messages = JSON.parse(localStorage.getItem('luxe-chat-backup') || '[]');
-            displayMessages(messages, false);
+            console.log('Server sync failed, using local storage:', error.message);
+            loadFromLocalStorage();
         });
 }
 
-function displayMessages(messages, forceScroll = false) {
-    const chatMessages = document.getElementById('chatMessages');
+function loadFromLocalStorage() {
+    try {
+        const stored = localStorage.getItem(CHAT_STORAGE_KEY);
+        if (stored) {
+            const localMessages = JSON.parse(stored);
+            if (localMessages.length > chatMessages.length) {
+                chatMessages = localMessages;
+                renderMessages();
+            }
+        }
+        if (chatMessages.length === 0) {
+            showEmptyState();
+        }
+    } catch (error) {
+        console.error('Error loading from localStorage:', error);
+        showEmptyState();
+    }
+}
+
+function sendChatMessage() {
+    const input = document.getElementById('chatInput');
+    const text = input.value.trim();
     
-    if (messages.length === 0) {
-        chatMessages.innerHTML = '<div class="chat-system-message">No messages yet. Be the first to say hello!</div>';
-        lastMessageId = 0;
+    if (!text) return;
+    
+    // Clear input immediately for better UX
+    input.value = '';
+    
+    // Create new message with unique ID
+    const newMessage = {
+        id: Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+        username: chatUsername,
+        text: text,
+        time: Date.now()
+    };
+    
+    // Add to local messages array
+    chatMessages.push(newMessage);
+    
+    // Keep only last 100 messages
+    if (chatMessages.length > 100) {
+        chatMessages = chatMessages.slice(-100);
+    }
+    
+    // Save to localStorage immediately
+    saveToLocalStorage();
+    
+    // Render immediately for instant feedback
+    renderMessages(true);
+    
+    // Upload to server for other users
+    uploadToServer();
+}
+
+function uploadToServer() {
+    fetch(CHAT_API_URL, {
+        method: 'POST',
+        headers: { 
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ messages: chatMessages })
+    })
+    .then(response => {
+        if (response.ok) {
+            console.log('✅ Message synced to server - other users will see it!');
+            // Immediately sync to get any messages from other users
+            setTimeout(syncMessagesFromServer, 500);
+        } else {
+            console.log('⚠️ Server sync failed, message saved locally');
+        }
+    })
+    .catch(error => {
+        console.log('⚠️ Server unavailable, message saved locally only');
+    });
+}
+
+function saveToLocalStorage() {
+    try {
+        localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(chatMessages));
+    } catch (error) {
+        console.error('Error saving to localStorage:', error);
+    }
+}
+
+function renderMessages(scrollToBottom = false) {
+    const container = document.getElementById('chatMessages');
+    
+    if (!chatMessages || chatMessages.length === 0) {
+        showEmptyState();
         return;
     }
     
-    // Get the latest message ID
-    const latestMessageId = messages[messages.length - 1].id;
+    // Check if user was scrolled to bottom
+    const wasAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 100;
     
-    // Only update if there are actually new messages
-    if (latestMessageId === lastMessageId && !forceScroll) {
-        return; // No new messages, don't update
-    }
+    // Clear container
+    container.innerHTML = '';
     
-    // Save scroll position
-    const wasScrolledToBottom = chatMessages.scrollHeight - chatMessages.scrollTop <= chatMessages.clientHeight + 100;
+    // Show last 50 messages
+    const messagesToShow = chatMessages.slice(-50);
     
-    // Clear and rebuild messages
-    chatMessages.innerHTML = '';
-    
-    messages.slice(-50).forEach(msg => {
+    messagesToShow.forEach(msg => {
         const messageDiv = document.createElement('div');
         messageDiv.className = 'chat-message' + (msg.username === chatUsername ? ' own' : '');
         
@@ -83,90 +208,24 @@ function displayMessages(messages, forceScroll = false) {
             <div class="chat-message-text">${escapeHtml(msg.text)}</div>
         `;
         
-        chatMessages.appendChild(messageDiv);
+        container.appendChild(messageDiv);
     });
     
-    // Update last message ID
-    lastMessageId = latestMessageId;
-    
-    // Save to localStorage
-    localStorage.setItem('luxe-chat-backup', JSON.stringify(messages));
-    
-    // Auto-scroll if needed
-    if (wasScrolledToBottom || forceScroll) {
+    // Auto-scroll if user was at bottom or if forced
+    if (wasAtBottom || scrollToBottom) {
         setTimeout(() => {
-            chatMessages.scrollTop = chatMessages.scrollHeight;
+            container.scrollTop = container.scrollHeight;
         }, 50);
     }
 }
 
-function sendMessage() {
-    const input = document.getElementById('chatInput');
-    const text = input.value.trim();
-    
-    if (!text) return;
-    
-    // Clear input immediately
-    input.value = '';
-    
-    const newMessage = {
-        id: Date.now(),
-        username: chatUsername,
-        text: text,
-        time: Date.now()
-    };
-    
-    // Get existing messages
-    const messages = JSON.parse(localStorage.getItem('luxe-chat-backup') || '[]');
-    messages.push(newMessage);
-    
-    // Keep only last 100 messages
-    if (messages.length > 100) {
-        messages.shift();
-    }
-    
-    // Save to localStorage
-    localStorage.setItem('luxe-chat-backup', JSON.stringify(messages));
-    
-    // Display immediately with force scroll
-    displayMessages(messages, true);
-    
-    // Send to server in background
-    fetch('https://jsonkeeper.com/b/LUXE_CHAT', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: messages })
-    }).catch(() => {
-        console.log('Using local storage mode');
-    });
+function showEmptyState() {
+    const container = document.getElementById('chatMessages');
+    container.innerHTML = '<div class="chat-system-message">No messages yet. Be the first to say hello! 👋</div>';
 }
 
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
-}
-
-function initChat() {
-    document.getElementById('toggleChatBtn').addEventListener('click', function() {
-        document.getElementById('chatModal').style.display = 'flex';
-        initializeChat();
-    });
-    
-    document.getElementById('closeChatBtn').addEventListener('click', function() {
-        document.getElementById('chatModal').style.display = 'none';
-    });
-    
-    document.getElementById('chatModalOverlay').addEventListener('click', function() {
-        document.getElementById('chatModal').style.display = 'none';
-    });
-    
-    document.getElementById('sendMessageBtn').addEventListener('click', sendMessage);
-    
-    document.getElementById('chatInput').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            sendMessage();
-        }
-    });
 }
