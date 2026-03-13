@@ -5,9 +5,10 @@
   "main": "index.html",
   "scripts": {
     "dev": "npx http-server -p 8080 -o",
-    "test": "echo \"Tests will be configured\" && exit 0",
+    "test": "node tests/automated.test.js",
     "test:watch": "echo \"Test watch not configured\" && exit 0",
     "test:e2e": "echo \"E2E tests will be configured\" && exit 0",
+    "audit": "npm audit --audit-level=moderate",
     "lint": "echo \"Linting passed\" && exit 0",
     "format": "echo \"Formatting complete\" && exit 0",
     "build": "echo \"Build successful\" && exit 0",
