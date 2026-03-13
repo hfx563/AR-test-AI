@@ -343,13 +343,14 @@
     <script src="src/core/loadingManager.production.js"></script>
     <script src="src/services/apiService.production.js"></script>
     <script src="src/utils/validator.production.js"></script>
-    <script src="app.production.js"></script>
+    <script src="app.js"></script>
     <script src="js/chat.js"></script>
     <script src="js/news.js"></script>
     <script>
-        // Initialize chat when page loads
+        // Initialize all modules when page loads
         document.addEventListener('DOMContentLoaded', function() {
-            initChat();
+            if (typeof initChat === 'function') initChat();
+            if (typeof initNews === 'function') initNews();
         });
     </script>
 </body>
