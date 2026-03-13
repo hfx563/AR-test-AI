@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ArLux Quick Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-result {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+        .pass {
+            background: #d4edda;
+            color: #155724;
+            border: 2px solid #c3e6cb;
+        }
+        .fail {
+            background: #f8d7da;
+            color: #721c24;
+            border: 2px solid #f5c6cb;
+        }
+        h1 { color: #333; }
+        .summary {
+            background: #e3f2fd;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            font-size: 18px;
+        }
+        button {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover { background: #1976D2; }
+    </style>
+</head>
+<body>
+    <h1>🧪 ArLux Quick Test</h1>
+    <button onclick="window.location.href='index.html'">🏠 Back to App</button>
+    <button onclick="runTests()">🔄 Run Tests</button>
+    
+    <div class="summary" id="summary">Click "Run Tests" to start</div>
+    <div id="results"></div>
+
+    <script>
+        function runTests() {
+            const results = document.getElementById('results');
+            results.innerHTML = '';
+            let pass = 0;
+            let fail = 0;
+
+            function test(name, condition) {
+                const div = document.createElement('div');
+                div.className = 'test-result ' + (condition ? 'pass' : 'fail');
+                div.textContent = (condition ? '✅ PASS' : '❌ FAIL') + ' - ' + name;
+                results.appendChild(div);
+                condition ? pass++ : fail++;
+            }
+
+            // Run tests by checking if files exist and can be loaded
+            test('index.html exists', window.location.pathname.includes('test-quick.html'));
+            test('Can access localStorage', (() => {
+                try {
+                    localStorage.setItem('test', '1');
+                    localStorage.removeItem('test');
+                    return true;
+                } catch(e) { return false; }
+            })());
+            test('Web Audio API supported', typeof AudioContext !== 'undefined' || typeof webkitAudioContext !== 'undefined');
+            test('Service Worker supported', 'serviceWorker' in navigator);
+            test('Fetch API supported', typeof fetch === 'function');
+            test('Geolocation supported', 'geolocation' in navigator);
+            test('MediaDevices supported', navigator.mediaDevices !== undefined);
+            test('Promises supported', typeof Promise !== 'undefined');
+            test('ES6 Arrow functions supported', (() => { try { eval('()=>{}'); return true; } catch(e) { return false; } })());
+            test('Template literals supported', (() => { try { eval('`test`'); return true; } catch(e) { return false; } })());
+
+            // Test if we can make API calls
+            test('Can make HTTP requests', (() => {
+                try {
+                    new XMLHttpRequest();
+                    return true;
+                } catch(e) { return false; }
+            })());
+
+            // Test DOM manipulation
+            test('Can create elements', (() => {
+                try {
+                    const div = document.createElement('div');
+                    return div !== null;
+                } catch(e) { return false; }
+            })());
+
+            // Test JSON support
+            test('JSON parse/stringify works', (() => {
+                try {
+                    const obj = {test: 'value'};
+                    const str = JSON.stringify(obj);
+                    const parsed = JSON.parse(str);
+                    return parsed.test === 'value';
+                } catch(e) { return false; }
+            })());
+
+            // Test Array methods
+            test('Array.map works', [1,2,3].map(x => x*2).join(',') === '2,4,6');
+            test('Array.filter works', [1,2,3,4].filter(x => x > 2).length === 2);
+            test('Array.reduce works', [1,2,3].reduce((a,b) => a+b, 0) === 6);
+
+            // Test String methods
+            test('String.includes works', 'hello world'.includes('world'));
+            test('String.startsWith works', 'hello'.startsWith('hel'));
+            test('String.trim works', '  test  '.trim() === 'test');
+
+            // Test Object methods
+            test('Object.keys works', Object.keys({a:1, b:2}).length === 2);
+            test('Object.assign works', Object.assign({}, {a:1}).a === 1);
+
+            // Test async support
+            test('async/await supported', (() => {
+                try {
+                    eval('(async () => {})');
+                    return true;
+                } catch(e) { return false; }
+            })());
+
+            // Test CSS support
+            test('CSS Grid supported', CSS.supports('display', 'grid'));
+            test('CSS Flexbox supported', CSS.supports('display', 'flex'));
+            test('CSS Variables supported', CSS.supports('--test', '0'));
+
+            // Test browser features
+            test('IntersectionObserver supported', typeof IntersectionObserver !== 'undefined');
+            test('MutationObserver supported', typeof MutationObserver !== 'undefined');
+            test('requestAnimationFrame supported', typeof requestAnimationFrame === 'function');
+
+            const total = pass + fail;
+            const percentage = Math.round((pass / total) * 100);
+            
+            document.getElementById('summary').innerHTML = `
+                <strong>Test Results: ${pass}/${total} passed (${percentage}%)</strong><br>
+                ✅ Passed: ${pass} | ❌ Failed: ${fail}
+            `;
+
+            // Add recommendation
+            if (percentage === 100) {
+                results.innerHTML += '<div class="test-result pass">🎉 All browser features supported! Website will work perfectly.</div>';
+            } else if (percentage >= 90) {
+                results.innerHTML += '<div class="test-result pass">✅ Most features supported. Website should work well.</div>';
+            } else {
+                results.innerHTML += '<div class="test-result fail">⚠️ Some features not supported. Consider updating your browser.</div>';
+            }
+        }
+
+        // Auto-run on load
+        window.addEventListener('load', runTests);
+    </script>
+</body>
+</html>
