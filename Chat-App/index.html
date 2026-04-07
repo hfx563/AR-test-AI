@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LiveChat — No Login Required</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- Name Entry Screen -->
+  <div id="join-screen">
+    <div class="join-box">
+      <div class="logo">💬</div>
+      <h1>LiveChat</h1>
+      <p>No account needed. Just enter your name and start chatting.</p>
+      <input id="name-input" type="text" placeholder="Your name..." maxlength="24" autocomplete="off" />
+      <button id="join-btn">Join Chat</button>
+      <span id="join-error"></span>
+    </div>
+  </div>
+
+  <!-- Chat Screen -->
+  <div id="chat-screen" class="hidden">
+    <header>
+      <div class="header-left">
+        <span class="logo-sm">💬</span>
+        <span class="room-name">LiveChat</span>
+      </div>
+      <div class="header-right">
+        <span id="online-count">🟢 <span id="online-num">1</span> online</span>
+        <button id="leave-btn" title="Leave chat">✕</button>
+      </div>
+    </header>
+
+    <div id="messages"></div>
+
+    <div id="typing-bar"><span id="typing-text"></span></div>
+
+    <form id="msg-form">
+      <input id="msg-input" type="text" placeholder="Type a message..." maxlength="500" autocomplete="off" />
+      <button type="submit" id="send-btn">Send</button>
+    </form>
+  </div>
+
+  <!-- Gun.js — no registration, no server needed -->
+  <script src="https://cdn.jsdelivr.net/npm/gun/gun.js"></script>
+  <script src="chat.js"></script>
+</body>
+</html>
