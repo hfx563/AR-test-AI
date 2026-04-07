@@ -1,264 +1,389 @@
-// ── Gun.js setup ──────────────────────────────────────────────────────────────
-const gun = Gun([
-  'https://gun-manhattan.herokuapp.com/gun',
-  'https://gun-us.herokuapp.com/gun',
-  'https://gunjs.herokuapp.com/gun'
-]);
+'use strict';
 
-const messages = gun.get('livechat-messages-v2');
-const presence = gun.get('livechat-presence-v2');
-const typing   = gun.get('livechat-typing-v2');
-const meta     = gun.get('livechat-meta-v2');
+// ── Config ────────────────────────────────────────────────────────────────────
+const BROKER  = 'wss://broker.emqx.io:8084/mqtt';
+const TOPIC   = 'livechat/public/v6/';
+const T_MSG   = TOPIC + 'msg';
+const T_CLEAR = TOPIC + 'clear';
+const T_TYPE  = TOPIC + 'typing';
+const T_PRES  = TOPIC + 'presence';
+const CHAT_PASSWORD = 'test123';
+const LS_HIST = 'lc_history_v6';
+const LS_EPOCH= 'lc_epoch_v6';
+const MAX_HIST= 500;  // keep more history
 
 // ── State ─────────────────────────────────────────────────────────────────────
+let mqttClient  = null;
 let userName    = '';
 let userColor   = '';
 let userKey     = '';
-let typingTimer = null;
-let seenIds     = new Set();
-let onlineUsers = {};
 let clearEpoch  = 0;
 let autoRefresh = true;
-let refreshInterval = null;
+let heartbeatTimer = null;
+let typTimer    = null;
+const seenIds   = new Set();
+const onlineMap = {};
+const typMap    = {};
 
-const COLORS = [
-  '#6c63ff','#a78bfa','#34d399','#f59e0b',
-  '#f87171','#38bdf8','#fb7185','#4ade80'
-];
+const COLORS = ['#6c63ff','#a78bfa','#34d399','#f59e0b','#f87171','#38bdf8','#fb7185','#4ade80'];
+const pickColor = () => COLORS[Math.floor(Math.random() * COLORS.length)];
+const makeId    = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const nowMs     = () => Date.now();
 
-function randomColor() { return COLORS[Math.floor(Math.random() * COLORS.length)]; }
-function uid()         { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
-
-function escapeHtml(str) {
-  return String(str)
+function esc(s) {
+  return String(s || '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;')
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function formatTime(ts) {
-  const d     = new Date(ts);
-  const today = new Date();
-  const time  = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  return d.toDateString() === today.toDateString()
-    ? time
-    : d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + time;
+function fmtTime(ts) {
+  const d = new Date(ts);
+  const t = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return d.toDateString() === new Date().toDateString()
+    ? t
+    : d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + t;
 }
 
-// ── DOM refs ──────────────────────────────────────────────────────────────────
-const joinScreen   = document.getElementById('join-screen');
-const chatScreen   = document.getElementById('chat-screen');
-const nameInput    = document.getElementById('name-input');
-const joinBtn      = document.getElementById('join-btn');
-const joinError    = document.getElementById('join-error');
-const messagesEl   = document.getElementById('messages');
-const msgForm      = document.getElementById('msg-form');
-const msgInput     = document.getElementById('msg-input');
-const leaveBtn     = document.getElementById('leave-btn');
-const clearBtn     = document.getElementById('clear-btn');
-const refreshBtn   = document.getElementById('refresh-btn');
-const onlineNum    = document.getElementById('online-num');
-const typingText   = document.getElementById('typing-text');
-const confirmModal = document.getElementById('confirm-modal');
-const confirmYes   = document.getElementById('confirm-yes');
-const confirmNo    = document.getElementById('confirm-no');
-const connStatus   = document.getElementById('conn-status');
+// ── DOM ───────────────────────────────────────────────────────────────────────
+const joinScr  = document.getElementById('join-screen');
+const chatScr  = document.getElementById('chat-screen');
+const nameInp  = document.getElementById('name-input');
+const passInp  = document.getElementById('pass-input');
+const joinBtn  = document.getElementById('join-btn');
+const joinErr  = document.getElementById('join-error');
+const msgsEl   = document.getElementById('messages');
+const msgForm  = document.getElementById('msg-form');
+const msgInp   = document.getElementById('msg-input');
+const leaveBtn = document.getElementById('leave-btn');
+const clearBtn = document.getElementById('clear-btn');
+const refBtn   = document.getElementById('refresh-btn');
+const onlineEl = document.getElementById('online-num');
+const typEl    = document.getElementById('typing-bar');
+const connDot  = document.getElementById('conn-dot');
+const modal    = document.getElementById('modal');
+const modalYes = document.getElementById('modal-yes');
+const modalNo  = document.getElementById('modal-no');
 
 // ── Join ──────────────────────────────────────────────────────────────────────
-nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') joinChat(); });
-joinBtn.addEventListener('click', joinChat);
+nameInp.addEventListener('keydown', e => { if (e.key === 'Enter') doJoin(); });
+passInp.addEventListener('keydown', e => { if (e.key === 'Enter') doJoin(); });
+joinBtn.addEventListener('click', doJoin);
 
-function joinChat() {
-  const name = nameInput.value.trim();
-  if (!name)           { joinError.textContent = 'Please enter your name.'; return; }
-  if (name.length < 2) { joinError.textContent = 'Name must be at least 2 characters.'; return; }
+function doJoin() {
+  const n = nameInp.value.trim();
+  const p = passInp.value;
+  if (!n)           { joinErr.textContent = 'Please enter your name.'; return; }
+  if (n.length < 2) { joinErr.textContent = 'Name must be at least 2 characters.'; return; }
+  if (!p)           { joinErr.textContent = 'Please enter the password.'; return; }
+  if (p !== CHAT_PASSWORD) { joinErr.textContent = 'Incorrect password.'; passInp.value = ''; passInp.focus(); return; }
+  joinErr.textContent = '';
 
-  userName  = escapeHtml(name);
-  userColor = randomColor();
-  userKey   = uid();
+  userName  = esc(n);
+  userColor = pickColor();
+  userKey   = makeId();
+  clearEpoch = parseInt(localStorage.getItem(LS_EPOCH) || '0', 10);
 
-  joinScreen.classList.add('hidden');
-  chatScreen.classList.remove('hidden');
-  msgInput.focus();
+  // Switch screens
+  joinScr.classList.add('hidden');
+  chatScr.classList.remove('hidden');
+  msgInp.focus();
 
-  setupPresence();
-  listenClearEpoch();
-  listenTyping();
-  listenOnlineCount();
-  startAutoRefresh();
-  updateConnStatus(true);
+  // Load saved history first
+  renderHistory();
+
+  // Connect MQTT
+  connectMQTT();
 }
 
 // ── Leave ─────────────────────────────────────────────────────────────────────
-leaveBtn.addEventListener('click', leaveChat);
-window.addEventListener('beforeunload', leaveChat);
+leaveBtn.addEventListener('click', doLeave);
+window.addEventListener('beforeunload', doLeave);
 
-function leaveChat() {
+function doLeave() {
   if (!userName) return;
-  sendSystemMessage(userName + ' left the chat');
-  presence.get(userKey).put(null);
-  typing.get(userKey).put(null);
-  stopAutoRefresh();
+  publish(T_MSG,  { type: 'system', text: userName + ' left the chat', ts: nowMs() });
+  publish(T_PRES, { key: userKey, name: userName, ts: 0 });
+  if (mqttClient) {
+    mqttClient.removeAllListeners(); // stop auto-reconnect
+    mqttClient.end(true);
+    mqttClient = null;
+  }
+  clearInterval(heartbeatTimer);
   userName = '';
-  chatScreen.classList.add('hidden');
-  joinScreen.classList.remove('hidden');
-  messagesEl.innerHTML = '';
-  nameInput.value = '';
+  chatScr.classList.add('hidden');
+  joinScr.classList.remove('hidden');
+  msgsEl.innerHTML = '';
+  nameInp.value = '';
+  seenIds.clear();
 }
 
-// ── Connection status dot ─────────────────────────────────────────────────────
-function updateConnStatus(online) {
-  connStatus.classList.toggle('conn-online',  online);
-  connStatus.classList.toggle('conn-offline', !online);
-  connStatus.title = online ? 'Connected' : 'Reconnecting...';
-}
+// ── MQTT connect ──────────────────────────────────────────────────────────────
+function connectMQTT() {
+  setDot(false);
 
-// Detect connection drops
-gun.on('hi',  () => updateConnStatus(true));
-gun.on('bye', () => updateConnStatus(false));
+  if (typeof mqtt === 'undefined') {
+    joinErr.textContent = 'Chat library failed to load. Please refresh.';
+    joinScr.classList.remove('hidden');
+    chatScr.classList.add('hidden');
+    return;
+  }
 
-// ── Auto-refresh ──────────────────────────────────────────────────────────────
-function startAutoRefresh() {
-  refreshInterval = setInterval(() => {
-    if (autoRefresh) refreshMessages();
-  }, 5000); // check every 5 seconds
-}
+  // Try brokers in order until one connects
+  const brokers = [
+    'wss://broker.emqx.io:8084/mqtt',
+    'wss://broker.hivemq.com:8884/mqtt',
+    'wss://test.mosquitto.org:8081/mqtt'
+  ];
+  let brokerIndex = 0;
 
-function stopAutoRefresh() {
-  clearInterval(refreshInterval);
-}
-
-// Manual refresh button — toggles auto-refresh on/off
-refreshBtn.addEventListener('click', () => {
-  autoRefresh = !autoRefresh;
-  refreshBtn.title      = autoRefresh ? 'Auto-refresh ON (click to pause)' : 'Auto-refresh OFF (click to resume)';
-  refreshBtn.style.opacity = autoRefresh ? '1' : '0.4';
-  if (autoRefresh) refreshMessages(); // immediate refresh when re-enabled
-});
-
-function refreshMessages() {
-  // Re-subscribe to any new messages gun may have missed
-  messages.map().once((msg, id) => {
-    if (!msg || !msg.ts || seenIds.has(id)) return;
-    if (msg.ts <= clearEpoch) return;
-    seenIds.add(id);
-    renderMessage(msg);
-  });
-}
-
-// ── Presence ──────────────────────────────────────────────────────────────────
-function setupPresence() {
-  presence.get(userKey).put({ name: userName, ts: Date.now() });
-  setInterval(() => {
-    if (userName) presence.get(userKey).put({ name: userName, ts: Date.now() });
-  }, 20000);
-}
-
-function listenOnlineCount() {
-  presence.map().on((data, key) => {
-    if (!data || !data.name || Date.now() - data.ts > 60000) {
-      delete onlineUsers[key];
-    } else {
-      onlineUsers[key] = data.name;
+  function tryConnect() {
+    if (brokerIndex >= brokers.length) {
+      setDot(false);
+      showSysMsg('Could not connect. Retrying...');
+      setTimeout(() => { brokerIndex = 0; tryConnect(); }, 5000);
+      return;
     }
-    onlineNum.textContent = Math.max(1, Object.keys(onlineUsers).length);
-  });
+
+    const broker = brokers[brokerIndex];
+    mqttClient = mqtt.connect(broker, {
+      clientId:        'lc_' + makeId(),
+      clean:           true,
+      reconnectPeriod: 0,       // we handle reconnect manually
+      connectTimeout:  8000,
+      username:        'livechat',
+      password:        'livechat'
+    });
+
+    mqttClient.on('connect', () => {
+      setDot(true);
+      mqttClient.subscribe([T_MSG, T_CLEAR, T_TYPE, T_PRES], err => {
+        if (!err) {
+          publish(T_MSG,  { type: 'system', text: userName + ' joined the chat', ts: nowMs() });
+          // Broadcast presence immediately so others update their count
+          publish(T_PRES, { key: userKey, name: userName, ts: nowMs() });
+          // Send again after 1s to ensure delivery
+          setTimeout(() => publish(T_PRES, { key: userKey, name: userName, ts: nowMs() }), 1000);
+          startHeartbeat();
+        }
+      });
+    });
+
+    mqttClient.on('error', () => {
+      setDot(false);
+      mqttClient.end(true);
+      brokerIndex++;
+      setTimeout(tryConnect, 1000);
+    });
+
+    mqttClient.on('close', () => {
+      if (userName) {
+        setDot(false);
+        setTimeout(() => { brokerIndex = 0; tryConnect(); }, 3000);
+      }
+    });
+
+    mqttClient.on('reconnect', () => setDot(false));
+    mqttClient.on('offline',   () => setDot(false));
+
+    mqttClient.on('message', (topic, raw) => {
+      try {
+        const data = JSON.parse(raw.toString());
+        if (topic === T_MSG)   handleMsg(data);
+        if (topic === T_CLEAR) handleClear(data);
+        if (topic === T_TYPE)  handleTyping(data);
+        if (topic === T_PRES)  handlePresence(data);
+      } catch (_) {}
+    });
+  }
+
+  tryConnect();
 }
 
-// ── Clear epoch ───────────────────────────────────────────────────────────────
-function listenClearEpoch() {
-  meta.get('clearEpoch').on(val => {
-    const newEpoch = val || 0;
-    if (newEpoch > clearEpoch) {
-      clearEpoch = newEpoch;
-      messagesEl.innerHTML = '';
-      seenIds = new Set();
-    }
-    listenMessages();
-    sendSystemMessage(userName + ' joined the chat');
-  });
+function publish(topic, data) {
+  if (mqttClient && mqttClient.connected) {
+    mqttClient.publish(topic, JSON.stringify(data));
+  }
 }
 
-// ── Messages ──────────────────────────────────────────────────────────────────
-function listenMessages() {
-  // Load ALL history then listen for new ones in real time
-  messages.map().on((msg, id) => {
-    if (!msg || !msg.ts || seenIds.has(id)) return;
-    if (msg.ts <= clearEpoch) return;
-    seenIds.add(id);
-    renderMessage(msg);
-  });
+function setDot(ok) {
+  connDot.className = ok ? 'dot-online' : 'dot-offline';
+  connDot.title = ok ? 'Connected' : 'Reconnecting...';
 }
 
-function renderMessage(msg) {
+function showSysMsg(text) {
+  const el = document.createElement('div');
+  el.className = 'sys';
+  el.textContent = text;
+  msgsEl.appendChild(el);
+  msgsEl.scrollTop = msgsEl.scrollHeight;
+}
+
+// ── History ───────────────────────────────────────────────────────────────────
+function getHistory() {
+  try { return JSON.parse(localStorage.getItem(LS_HIST) || '[]'); } catch (_) { return []; }
+}
+
+function saveHistory(arr) {
+  try { localStorage.setItem(LS_HIST, JSON.stringify(arr)); } catch (_) {}
+}
+
+function addToHistory(msg) {
+  const h = getHistory();
+  // Avoid duplicates in storage
+  const key = String(msg.ts) + '|' + String(msg.name || '') + '|' + String(msg.text || '');
+  if (h.some(m => String(m.ts)+'|'+String(m.name||'')+'|'+String(m.text||'') === key)) return;
+  h.push(msg);
+  saveHistory(h);  // no slice — keep ALL history until user clears
+}
+
+function renderHistory() {
+  const h = getHistory().filter(m => m.ts > clearEpoch);
+  h.sort((a, b) => a.ts - b.ts);
+  h.forEach(m => renderMsg(m, false));
+}
+
+// ── Incoming messages ─────────────────────────────────────────────────────────
+function handleMsg(msg) {
+  if (!msg || !msg.ts) return;
+  if (msg.ts <= clearEpoch) return;
+
+  // BUG FIX: deduplicate using a stable key
+  const dedupKey = String(msg.ts) + '|' + String(msg.name || '') + '|' + String(msg.text || '');
+  if (seenIds.has(dedupKey)) return;
+  seenIds.add(dedupKey);
+
+  renderMsg(msg, true);
+  if (msg.type === 'user') addToHistory(msg);
+}
+
+function renderMsg(msg, animate) {
   if (msg.type === 'system') {
     const el = document.createElement('div');
-    el.className = 'msg-system';
+    el.className = 'sys';
     el.textContent = msg.text;
-    messagesEl.appendChild(el);
+    msgsEl.appendChild(el);
   } else {
     const isMe = msg.name === userName;
     const row  = document.createElement('div');
-    row.className = 'msg-row ' + (isMe ? 'me' : 'other');
+    row.className = 'row ' + (isMe ? 'me' : 'them') + (animate ? ' pop' : '');
     row.innerHTML =
-      (!isMe ? '<div class="msg-name" style="color:' + msg.color + '">' + escapeHtml(msg.name) + '</div>' : '') +
-      '<div class="msg-bubble">' + escapeHtml(msg.text) + '</div>' +
-      '<div class="msg-time">' + formatTime(msg.ts) + '</div>';
-    messagesEl.appendChild(row);
+      (!isMe ? '<div class="who" style="color:' + msg.color + '">' + esc(msg.name) + '</div>' : '') +
+      '<div class="bubble">' + esc(msg.text) + '</div>' +
+      '<div class="ts">' + fmtTime(msg.ts) + '</div>';
+    msgsEl.appendChild(row);
   }
-  messagesEl.scrollTop = messagesEl.scrollHeight;
-}
-
-function sendSystemMessage(text) {
-  messages.get(uid()).put({ type: 'system', text, ts: Date.now() });
+  msgsEl.scrollTop = msgsEl.scrollHeight;
 }
 
 // ── Send message ──────────────────────────────────────────────────────────────
 msgForm.addEventListener('submit', e => {
   e.preventDefault();
-  const text = msgInput.value.trim();
+  const text = msgInp.value.trim();
   if (!text || !userName) return;
-  messages.get(uid()).put({
-    type: 'user', name: userName, color: userColor, text, ts: Date.now()
-  });
-  msgInput.value = '';
-  clearTypingIndicator();
+
+  const msg = { type: 'user', name: userName, color: userColor, text, ts: nowMs() };
+
+  // BUG FIX: pre-register dedup key so MQTT echo doesn't double-render
+  const dedupKey = String(msg.ts) + '|' + msg.name + '|' + msg.text;
+  seenIds.add(dedupKey);
+
+  publish(T_MSG, msg);
+  renderMsg(msg, true);
+  addToHistory(msg);
+  msgInp.value = '';
+  doStopTyping();
 });
 
 // ── Clear history ─────────────────────────────────────────────────────────────
-clearBtn.addEventListener('click', () => confirmModal.classList.remove('hidden'));
-confirmNo.addEventListener('click',  () => confirmModal.classList.add('hidden'));
+clearBtn.addEventListener('click', () => modal.classList.remove('hidden'));
+modalNo.addEventListener('click',  () => modal.classList.add('hidden'));
 
-confirmYes.addEventListener('click', () => {
-  confirmModal.classList.add('hidden');
-  const epoch = Date.now();
-  meta.get('clearEpoch').put(epoch);
-  clearEpoch = epoch;
-  messagesEl.innerHTML = '';
-  seenIds = new Set();
-  sendSystemMessage(userName + ' cleared the chat history');
+modalYes.addEventListener('click', () => {
+  modal.classList.add('hidden');
+  const epoch = nowMs();
+  // BUG FIX: publish THEN apply locally so both paths use same function
+  publish(T_CLEAR, { epoch, by: userName });
+  applyClear(epoch, userName);
 });
 
-// ── Typing indicator ──────────────────────────────────────────────────────────
-msgInput.addEventListener('input', () => {
-  if (!userName) return;
-  typing.get(userKey).put({ name: userName, ts: Date.now() });
-  clearTimeout(typingTimer);
-  typingTimer = setTimeout(clearTypingIndicator, 3000);
-});
-
-function clearTypingIndicator() {
-  if (userName) typing.get(userKey).put(null);
-  clearTimeout(typingTimer);
+function handleClear(data) {
+  if (!data || !data.epoch) return;
+  if (data.epoch <= clearEpoch) return;
+  applyClear(data.epoch, data.by);
 }
 
-function listenTyping() {
-  typing.map().on(() => {
-    const typers = [];
-    typing.map().once((d, k) => {
-      if (d && d.name && k !== userKey && Date.now() - d.ts < 4000) typers.push(d.name);
-    });
-    if (typers.length === 0)      typingText.textContent = '';
-    else if (typers.length === 1) typingText.textContent = typers[0] + ' is typing...';
-    else                          typingText.textContent = typers.join(', ') + ' are typing...';
+function applyClear(epoch, by) {
+  clearEpoch = epoch;
+  localStorage.setItem(LS_EPOCH, String(epoch));
+  saveHistory([]);
+  seenIds.clear();
+  msgsEl.innerHTML = '';
+  const el = document.createElement('div');
+  el.className = 'sys';
+  el.textContent = (by || 'Someone') + ' cleared the chat history';
+  msgsEl.appendChild(el);
+}
+
+// ── Heartbeat / auto-refresh ──────────────────────────────────────────────────
+function startHeartbeat() {
+  clearInterval(heartbeatTimer);
+  heartbeatTimer = setInterval(() => {
+    if (!userName || !autoRefresh) return;
+    publish(T_PRES, { key: userKey, name: userName, ts: nowMs() });
+    updateOnlineCount();
+  }, 10000);  // every 10s for faster online count updates
+}
+
+refBtn.addEventListener('click', () => {
+  autoRefresh = !autoRefresh;
+  refBtn.style.opacity = autoRefresh ? '1' : '0.4';
+  refBtn.title = autoRefresh ? 'Auto-refresh ON — click to pause' : 'Auto-refresh OFF — click to resume';
+});
+
+// ── Presence / online count ───────────────────────────────────────────────────
+function handlePresence(data) {
+  if (!data || !data.key) return;
+  if (!data.ts || nowMs() - data.ts > 90000) {
+    delete onlineMap[data.key];
+  } else {
+    onlineMap[data.key] = { name: data.name, ts: data.ts };
+  }
+  updateOnlineCount();
+}
+
+function updateOnlineCount() {
+  // Prune stale (no heartbeat in 90s)
+  Object.keys(onlineMap).forEach(k => {
+    if (nowMs() - onlineMap[k].ts > 90000) delete onlineMap[k];
   });
+  // Self is always online — count others from map + 1 for self
+  const others = Object.keys(onlineMap).filter(k => k !== userKey).length;
+  onlineEl.textContent = 1 + others;
+}
+
+// ── Typing indicator ──────────────────────────────────────────────────────────
+msgInp.addEventListener('input', () => {
+  if (!userName) return;
+  publish(T_TYPE, { key: userKey, name: userName, ts: nowMs() });
+  clearTimeout(typTimer);
+  typTimer = setTimeout(doStopTyping, 3000);
+});
+
+function doStopTyping() {
+  if (userName) publish(T_TYPE, { key: userKey, name: userName, ts: 0 });
+  clearTimeout(typTimer);
+}
+
+function handleTyping(data) {
+  if (!data || !data.key || data.key === userKey) return;
+  if (!data.ts || nowMs() - data.ts > 4000) {
+    delete typMap[data.key];
+  } else {
+    typMap[data.key] = data.name;
+  }
+  const typers = Object.values(typMap);
+  typEl.textContent =
+    typers.length === 0 ? '' :
+    typers.length === 1 ? typers[0] + ' is typing...' :
+    typers.join(', ') + ' are typing...';
 }
