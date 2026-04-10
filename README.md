@@ -21,12 +21,3 @@ Luxe Travel — a public travel guide web app with city search, weather, news an
 **To deploy:** See `Travel-App\README.md`
 
 ---
-
-## Landscaping-App/
-GreenEdge Landscaping — responsive website with real-time NFC-based truck tracking, admin panel, and contact page.
-
-**To run locally:** Double-click `Landscaping-App\START.bat`
-
-**Requires:** [Node.js](https://nodejs.org) — START.bat installs dependencies automatically.
-
----
