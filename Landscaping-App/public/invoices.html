@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Invoices — GreenEdge Resources</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="auth.js"></script>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="nav-logo">🌿 Green<span>Edge</span></a>
+  <div class="nav-links" id="navLinks">
+    <a href="index.html">Home</a><a href="dashboard.html">Dashboard</a>
+    <a href="jobs.html">Orders</a><a href="trips.html">Deliveries</a>
+    <a href="drivers.html">Drivers</a><a href="maintenance.html">Maintenance</a>
+    <a href="invoices.html" class="active">Invoices</a><a href="admin.html">Admin</a><a href="about.html">Contact</a>
+    <a href="#" onclick="logout()" style="color:#ffaaaa;">Logout</a>
+  </div>
+  <button class="hamburger" onclick="document.getElementById('navLinks').classList.toggle('open')" aria-label="Menu"><span></span><span></span><span></span></button>
+</nav>
+
+<div class="section">
+  <div class="page-header">
+    <div><h1 class="section-title" style="margin-bottom:.25rem;">💰 Invoices</h1><p class="section-sub" style="margin-bottom:0;">Generate and track contractor invoices</p></div>
+    <button class="btn btn-primary" onclick="openInvModal()">+ New Invoice</button>
+  </div>
+
+  <div class="stat-grid" id="invStats"></div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Customer</th><th>Job</th><th>Amount</th><th>Due Date</th><th>Status</th><th>Notes</th><th>Actions</th></tr></thead>
+      <tbody id="invBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal-overlay" id="invModal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="invModalTitle">New Invoice</h3><button class="modal-close" onclick="closeModal('invModal')">✕</button></div>
+    <input type="hidden" id="iId">
+    <div class="form-row">
+      <div class="form-group"><label>Customer *</label><input type="text" id="iCustomer" placeholder="Customer name"></div>
+      <div class="form-group"><label>Amount ($)</label><input type="number" id="iAmount" placeholder="0.00" step="0.01"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Link to Job</label><select id="iJob"><option value="">— No Job —</option></select></div>
+      <div class="form-group"><label>Due Date</label><input type="date" id="iDue"></div>
+    </div>
+    <div class="form-group"><label>Status</label>
+      <select id="iStatus"><option value="unpaid">Unpaid</option><option value="paid">Paid</option><option value="overdue">Overdue</option></select>
+    </div>
+    <div class="form-group"><label>Notes</label><textarea id="iNotes" placeholder="Notes…"></textarea></div>
+    <div style="display:flex;gap:.75rem;justify-content:flex-end;margin-top:1rem;">
+      <button class="btn btn-outline" onclick="closeModal('invModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveInv()">Save Invoice</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<footer><p>© 2025 GreenEdge Landscaping Resources · <a href="index.html">Home</a></p></footer>
+
+<script>
+let jobs=[], editInvId=null;
+function toast(msg,err=false){const t=document.getElementById('toast');t.textContent=msg;t.style.background=err?'var(--red)':'var(--green-dark)';t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+function fmtDate(d){return d?new Date(d).toLocaleDateString():'—';}
+function fmtMoney(n){return '$'+(parseFloat(n)||0).toFixed(2);}
+
+async function init() {
+  jobs = await fetch('/api/jobs').then(r=>r.json());
+  document.getElementById('iJob').innerHTML = '<option value="">— No Job —</option>' + jobs.map(j=>`<option value="${j.id}">${j.title}</option>`).join('');
+  loadInvoices();
+}
+
+async function loadInvoices() {
+  const invs = await fetch('/api/invoices').then(r=>r.json());
+  const unpaid = invs.filter(i=>i.status==='unpaid');
+  const paid = invs.filter(i=>i.status==='paid');
+  const totalUnpaid = unpaid.reduce((s,i)=>s+(parseFloat(i.amount)||0),0);
+  const totalPaid = paid.reduce((s,i)=>s+(parseFloat(i.amount)||0),0);
+  document.getElementById('invStats').innerHTML = `
+    <div class="stat-card"><div class="stat-number">${invs.length}</div><div class="stat-label">Total Invoices</div></div>
+    <div class="stat-card"><div class="stat-number red">${unpaid.length}</div><div class="stat-label">Unpaid</div></div>
+    <div class="stat-card"><div class="stat-number">${paid.length}</div><div class="stat-label">Paid</div></div>
+    <div class="stat-card"><div class="stat-number red" style="font-size:1.6rem;">${fmtMoney(totalUnpaid)}</div><div class="stat-label">Outstanding</div></div>
+    <div class="stat-card"><div class="stat-number" style="font-size:1.6rem;">${fmtMoney(totalPaid)}</div><div class="stat-label">Collected</div></div>
+  `;
+  const tbody = document.getElementById('invBody');
+  if (!invs.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);">No invoices yet.</td></tr>'; return; }
+  tbody.innerHTML = invs.map(i => {
+    const job = jobs.find(j=>j.id===i.job_id);
+    return `<tr>
+      <td><strong>${i.customer}</strong></td>
+      <td style="font-size:.85rem;">${job?.title||'—'}</td>
+      <td><strong>${fmtMoney(i.amount)}</strong></td>
+      <td style="font-size:.85rem;">${fmtDate(i.due_date)}</td>
+      <td><span class="badge badge-${i.status}">${i.status}</span></td>
+      <td style="font-size:.82rem;color:var(--muted);">${i.notes||''}</td>
+      <td style="display:flex;gap:.3rem;flex-wrap:wrap;">
+        <button class="btn btn-outline btn-sm" onclick="openInvModal('${i.id}')">Edit</button>
+        ${i.status!=='paid'?`<button class="btn btn-primary btn-sm" onclick="markPaid('${i.id}')">✓ Paid</button>`:''}
+        <button class="btn btn-danger btn-sm" onclick="deleteInv('${i.id}')">Del</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function openInvModal(id=null) {
+  editInvId = id;
+  document.getElementById('invModalTitle').textContent = id ? 'Edit Invoice' : 'New Invoice';
+  if (!id) { ['iId','iCustomer','iDue','iNotes'].forEach(f=>document.getElementById(f).value=''); document.getElementById('iAmount').value=0; document.getElementById('iStatus').value='unpaid'; document.getElementById('iJob').value=''; }
+  else {
+    fetch('/api/invoices').then(r=>r.json()).then(invs=>{
+      const i=invs.find(x=>x.id===id); if(!i) return;
+      document.getElementById('iId').value=i.id;
+      document.getElementById('iCustomer').value=i.customer;
+      document.getElementById('iAmount').value=i.amount||0;
+      document.getElementById('iJob').value=i.job_id||'';
+      document.getElementById('iDue').value=i.due_date||'';
+      document.getElementById('iStatus').value=i.status||'unpaid';
+      document.getElementById('iNotes').value=i.notes||'';
+    });
+  }
+  document.getElementById('invModal').classList.add('open');
+}
+
+async function saveInv() {
+  const body = { customer:document.getElementById('iCustomer').value.trim(), amount:parseFloat(document.getElementById('iAmount').value)||0, job_id:document.getElementById('iJob').value, due_date:document.getElementById('iDue').value, status:document.getElementById('iStatus').value, notes:document.getElementById('iNotes').value.trim() };
+  if (!body.customer) return toast('Customer is required.', true);
+  const headers = {'Content-Type':'application/json','x-admin-token':sessionStorage.getItem('adminToken')||''};
+  if (editInvId) { await fetch(`/api/invoices/${editInvId}`,{method:'PUT',headers,body:JSON.stringify(body)}); toast('✅ Invoice updated.'); }
+  else { await fetch('/api/invoices',{method:'POST',headers,body:JSON.stringify(body)}); toast('✅ Invoice created.'); }
+  closeModal('invModal'); loadInvoices();
+}
+
+async function markPaid(id) {
+  const headers = {'Content-Type':'application/json','x-admin-token':sessionStorage.getItem('adminToken')||''};
+  const invs = await fetch('/api/invoices').then(r=>r.json());
+  const inv = invs.find(i=>i.id===id);
+  await fetch(`/api/invoices/${id}`,{method:'PUT',headers,body:JSON.stringify({...inv,status:'paid'})});
+  toast('✅ Marked as paid.'); loadInvoices();
+}
+
+async function deleteInv(id) {
+  if (!confirm('Delete this invoice?')) return;
+  await fetch(`/api/invoices/${id}`,{method:'DELETE',headers:{'x-admin-token':sessionStorage.getItem('adminToken')||''}});
+  toast('🗑️ Deleted.'); loadInvoices();
+}
+
+function logout(){fetch('/api/auth/logout',{method:'POST',headers:{'x-admin-token':sessionStorage.getItem('adminToken')||''}});sessionStorage.removeItem('adminToken');location.replace('login.html');}
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login — GreenEdge Resources</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:1rem;">
+
+<div class="card" style="width:min(400px,100%);text-align:center;">
+  <a href="index.html" style="text-decoration:none;">
+    <div style="font-size:2rem;margin-bottom:.5rem;">🌿</div>
+    <div style="font-size:1.3rem;font-weight:800;color:var(--green-dark);margin-bottom:.25rem;">GreenEdge Resources</div>
+  </a>
+  <p style="color:var(--muted);font-size:.9rem;margin-bottom:1.75rem;">Admin access required</p>
+
+  <div class="form-group" style="text-align:left;">
+    <label>Password</label>
+    <input type="password" id="password" placeholder="Enter admin password" onkeydown="if(event.key==='Enter')doLogin()">
+  </div>
+  <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:.5rem;" onclick="doLogin()">Login →</button>
+  <div id="loginError" style="color:var(--red);font-size:.85rem;margin-top:.75rem;display:none;">Incorrect password. Try again.</div>
+  <div style="margin-top:1.5rem;padding-top:1rem;border-top:1px solid var(--border);">
+    <a href="index.html" style="color:var(--muted);font-size:.85rem;text-decoration:none;">← Back to homepage</a>
+  </div>
+</div>
+
+<script>
+async function doLogin() {
+  const pw = document.getElementById('password').value;
+  const r = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: pw })
+  });
+  if (!r.ok) {
+    document.getElementById('loginError').style.display = 'block';
+    return;
+  }
+  const { token } = await r.json();
+  sessionStorage.setItem('adminToken', token);
+  const redirect = sessionStorage.getItem('redirectAfterLogin') || 'dashboard.html';
+  sessionStorage.removeItem('redirectAfterLogin');
+  location.replace(redirect);
+}
+</script>
+</body>
+</html>

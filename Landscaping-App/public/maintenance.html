@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Maintenance — GreenEdge Resources</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="auth.js"></script>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="nav-logo">🌿 Green<span>Edge</span></a>
+  <div class="nav-links" id="navLinks">
+    <a href="index.html">Home</a><a href="dashboard.html">Dashboard</a>
+    <a href="jobs.html">Orders</a><a href="trips.html">Deliveries</a>
+    <a href="drivers.html">Drivers</a><a href="maintenance.html" class="active">Maintenance</a>
+    <a href="invoices.html">Invoices</a><a href="admin.html">Admin</a><a href="about.html">Contact</a>
+    <a href="#" onclick="logout()" style="color:#ffaaaa;">Logout</a>
+  </div>
+  <button class="hamburger" onclick="document.getElementById('navLinks').classList.toggle('open')" aria-label="Menu"><span></span><span></span><span></span></button>
+</nav>
+
+<div class="section">
+  <div class="page-header">
+    <div><h1 class="section-title" style="margin-bottom:.25rem;">🔧 Fleet Maintenance</h1><p class="section-sub" style="margin-bottom:0;">Track delivery truck maintenance schedules and alerts</p></div>
+    <button class="btn btn-primary" onclick="openMaintModal()">+ Add Record</button>
+  </div>
+
+  <div class="stat-grid" id="maintStats"></div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Truck</th><th>Service Type</th><th>Due Date</th><th>Last Done</th><th>Status</th><th>Notes</th><th>Actions</th></tr></thead>
+      <tbody id="maintBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal-overlay" id="maintModal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="maintModalTitle">Add Maintenance</h3><button class="modal-close" onclick="closeModal('maintModal')">✕</button></div>
+    <input type="hidden" id="mId">
+    <div class="form-row">
+      <div class="form-group"><label>Truck *</label><select id="mTruck"></select></div>
+      <div class="form-group"><label>Service Type *</label>
+        <select id="mType">
+          <option>Oil Change</option><option>Tire Rotation</option><option>Brake Inspection</option>
+          <option>Engine Service</option><option>Transmission Service</option><option>Air Filter</option>
+          <option>Battery Check</option><option>Annual Inspection</option><option>Other</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Due Date</label><input type="date" id="mDueDate"></div>
+      <div class="form-group"><label>Last Done</label><input type="date" id="mLastDone"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Due Miles</label><input type="number" id="mMiles" placeholder="0"></div>
+      <div class="form-group"><label>Status</label>
+        <select id="mStatus"><option value="upcoming">Upcoming</option><option value="overdue">Overdue</option><option value="completed">Completed</option></select>
+      </div>
+    </div>
+    <div class="form-group"><label>Notes</label><textarea id="mNotes" placeholder="Notes…"></textarea></div>
+    <div style="display:flex;gap:.75rem;justify-content:flex-end;margin-top:1rem;">
+      <button class="btn btn-outline" onclick="closeModal('maintModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveMaint()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<footer><p>© 2025 GreenEdge Landscaping Resources · <a href="index.html">Home</a></p></footer>
+
+<script>
+let trucks=[], editMaintId=null;
+function toast(msg,err=false){const t=document.getElementById('toast');t.textContent=msg;t.style.background=err?'var(--red)':'var(--green-dark)';t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+function fmtDate(d){return d?new Date(d).toLocaleDateString():'—';}
+
+async function init() {
+  trucks = await fetch('/api/trucks').then(r=>r.json());
+  document.getElementById('mTruck').innerHTML = trucks.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
+  loadMaint();
+}
+
+async function loadMaint() {
+  const records = await fetch('/api/maintenance').then(r=>r.json());
+  const overdue = records.filter(r=>r.status==='overdue').length;
+  const upcoming = records.filter(r=>r.status==='upcoming').length;
+  const completed = records.filter(r=>r.status==='completed').length;
+  document.getElementById('maintStats').innerHTML = `
+    <div class="stat-card"><div class="stat-number red">${overdue}</div><div class="stat-label">Overdue</div></div>
+    <div class="stat-card"><div class="stat-number orange">${upcoming}</div><div class="stat-label">Upcoming</div></div>
+    <div class="stat-card"><div class="stat-number">${completed}</div><div class="stat-label">Completed</div></div>
+    <div class="stat-card"><div class="stat-number">${records.length}</div><div class="stat-label">Total Records</div></div>
+  `;
+  const tbody = document.getElementById('maintBody');
+  if (!records.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);">No maintenance records.</td></tr>'; return; }
+  tbody.innerHTML = records.map(r => `
+    <tr>
+      <td><strong>${r.truck_name||'—'}</strong></td>
+      <td>${r.type}</td>
+      <td style="font-size:.85rem;">${fmtDate(r.due_date)}</td>
+      <td style="font-size:.85rem;">${fmtDate(r.last_done)}</td>
+      <td><span class="badge badge-${r.status}">${r.status}</span></td>
+      <td style="font-size:.82rem;color:var(--muted);">${r.notes||''}</td>
+      <td style="display:flex;gap:.3rem;flex-wrap:wrap;">
+        <button class="btn btn-outline btn-sm" onclick="openMaintModal('${r.id}')">Edit</button>
+        <button class="btn btn-primary btn-sm" onclick="markDone('${r.id}')">✓ Done</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteMaint('${r.id}')">Del</button>
+      </td>
+    </tr>`).join('');
+}
+
+function openMaintModal(id=null) {
+  editMaintId = id;
+  document.getElementById('maintModalTitle').textContent = id ? 'Edit Record' : 'Add Maintenance';
+  if (!id) { ['mId','mDueDate','mLastDone','mNotes'].forEach(f=>document.getElementById(f).value=''); document.getElementById('mMiles').value=0; document.getElementById('mStatus').value='upcoming'; }
+  else {
+    fetch('/api/maintenance').then(r=>r.json()).then(records=>{
+      const r=records.find(x=>x.id===id); if(!r) return;
+      document.getElementById('mId').value=r.id;
+      document.getElementById('mTruck').value=r.truck_id;
+      document.getElementById('mType').value=r.type;
+      document.getElementById('mDueDate').value=r.due_date||'';
+      document.getElementById('mLastDone').value=r.last_done||'';
+      document.getElementById('mMiles').value=r.due_miles||0;
+      document.getElementById('mStatus').value=r.status||'upcoming';
+      document.getElementById('mNotes').value=r.notes||'';
+    });
+  }
+  document.getElementById('maintModal').classList.add('open');
+}
+
+async function saveMaint() {
+  const body = { truck_id:document.getElementById('mTruck').value, type:document.getElementById('mType').value, due_date:document.getElementById('mDueDate').value, last_done:document.getElementById('mLastDone').value, due_miles:parseInt(document.getElementById('mMiles').value)||0, status:document.getElementById('mStatus').value, notes:document.getElementById('mNotes').value.trim() };
+  const headers = {'Content-Type':'application/json','x-admin-token':sessionStorage.getItem('adminToken')||''};
+  if (editMaintId) { await fetch(`/api/maintenance/${editMaintId}`,{method:'PUT',headers,body:JSON.stringify(body)}); toast('✅ Updated.'); }
+  else { await fetch('/api/maintenance',{method:'POST',headers,body:JSON.stringify(body)}); toast('✅ Record added.'); }
+  closeModal('maintModal'); loadMaint();
+}
+
+async function markDone(id) {
+  const headers = {'Content-Type':'application/json','x-admin-token':sessionStorage.getItem('adminToken')||''};
+  await fetch(`/api/maintenance/${id}`,{method:'PUT',headers,body:JSON.stringify({status:'completed',last_done:new Date().toISOString().slice(0,10)})});
+  toast('✅ Marked as done.'); loadMaint();
+}
+
+async function deleteMaint(id) {
+  if (!confirm('Delete this record?')) return;
+  await fetch(`/api/maintenance/${id}`,{method:'DELETE',headers:{'x-admin-token':sessionStorage.getItem('adminToken')||''}});
+  toast('🗑️ Deleted.'); loadMaint();
+}
+
+function logout(){fetch('/api/auth/logout',{method:'POST',headers:{'x-admin-token':sessionStorage.getItem('adminToken')||''}});sessionStorage.removeItem('adminToken');location.replace('login.html');}
+init();
+</script>
+</body>
+</html>

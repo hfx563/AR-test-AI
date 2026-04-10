@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deliveries — GreenEdge Resources</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="auth.js"></script>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="nav-logo">🌿 Green<span>Edge</span></a>
+  <div class="nav-links" id="navLinks">
+    <a href="index.html">Home</a><a href="dashboard.html">Dashboard</a>
+    <a href="jobs.html">Orders</a><a href="trips.html" class="active">Deliveries</a>
+    <a href="drivers.html">Drivers</a><a href="maintenance.html">Maintenance</a>
+    <a href="invoices.html">Invoices</a><a href="admin.html">Admin</a><a href="about.html">Contact</a>
+    <a href="#" onclick="logout()" style="color:#ffaaaa;">Logout</a>
+  </div>
+  <button class="hamburger" onclick="document.getElementById('navLinks').classList.toggle('open')" aria-label="Menu"><span></span><span></span><span></span></button>
+</nav>
+
+<div class="section">
+  <div class="page-header">
+    <div><h1 class="section-title" style="margin-bottom:.25rem;">🚛 Delivery Logbook</h1><p class="section-sub" style="margin-bottom:0;">Full history of all deliveries and material runs</p></div>
+    <button class="btn btn-primary" onclick="openTripModal()">+ Log Delivery</button>
+  </div>
+
+  <div class="stat-grid" id="tripStats"></div>
+
+  <!-- Filters -->
+  <div style="display:flex;gap:.5rem;margin-bottom:1.5rem;flex-wrap:wrap;align-items:center;">
+    <select id="fTruck" onchange="loadTrips()" style="width:auto;padding:.4rem .7rem;font-size:.85rem;"><option value="">All Trucks</option></select>
+    <select id="fDriver" onchange="loadTrips()" style="width:auto;padding:.4rem .7rem;font-size:.85rem;"><option value="">All Drivers</option></select>
+    <select id="fStatus" onchange="loadTrips()" style="width:auto;padding:.4rem .7rem;font-size:.85rem;">
+      <option value="">All Status</option><option value="in_progress">In Progress</option><option value="completed">Completed</option>
+    </select>
+    <input type="date" id="fFrom" onchange="loadTrips()" style="width:auto;padding:.4rem .7rem;font-size:.85rem;" placeholder="From">
+    <input type="date" id="fTo" onchange="loadTrips()" style="width:auto;padding:.4rem .7rem;font-size:.85rem;" placeholder="To">
+    <button class="btn btn-outline btn-sm" onclick="clearFilters()">Clear</button>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Truck</th><th>Driver</th><th>Job</th><th>Material</th><th>Qty</th><th>Start</th><th>End</th><th>Duration</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="tripsBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Trip Modal -->
+<div class="modal-overlay" id="tripModal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="tripModalTitle">Log Delivery</h3><button class="modal-close" onclick="closeModal('tripModal')">✕</button></div>
+    <input type="hidden" id="tId">
+    <div class="form-row">
+      <div class="form-group"><label>Truck *</label><select id="tTruck"></select></div>
+      <div class="form-group"><label>Driver</label><select id="tDriver"><option value="">— None —</option></select></div>
+    </div>
+    <div class="form-group"><label>Job (optional)</label><select id="tJob"><option value="">— No Job —</option></select></div>
+    <div class="form-row">
+      <div class="form-group"><label>Material</label><input type="text" id="tMaterial" placeholder="e.g. Mulch, Soil"></div>
+      <div class="form-group"><label>Quantity</label>
+        <div style="display:flex;gap:.5rem;">
+          <input type="number" id="tQty" placeholder="0" style="flex:1;">
+          <select id="tUnit" style="width:auto;"><option>yards</option><option>tons</option><option>bags</option><option>loads</option></select>
+        </div>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Status</label>
+        <select id="tStatus"><option value="in_progress">In Progress</option><option value="completed">Completed</option></select>
+      </div>
+      <div class="form-group"><label>End Time</label><input type="datetime-local" id="tEnd"></div>
+    </div>
+    <div class="form-group"><label>Notes</label><textarea id="tNotes" placeholder="Notes…"></textarea></div>
+    <div style="display:flex;gap:.75rem;justify-content:flex-end;margin-top:1rem;">
+      <button class="btn btn-outline" onclick="closeModal('tripModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveTrip()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<footer><p>© 2025 GreenEdge Landscaping Resources · <a href="index.html">Home</a></p></footer>
+
+<script>
+let trucks=[], drivers=[], jobs=[], editTripId=null;
+function fmt(ts){return ts?new Date(ts).toLocaleString():'—';}
+function duration(s,e){if(!s||!e)return'—';const m=Math.round((new Date(e)-new Date(s))/60000);return m<60?m+'m':Math.floor(m/60)+'h '+(m%60)+'m';}
+function toast(msg,err=false){const t=document.getElementById('toast');t.textContent=msg;t.style.background=err?'var(--red)':'var(--green-dark)';t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+function clearFilters(){['fTruck','fDriver','fStatus','fFrom','fTo'].forEach(id=>document.getElementById(id).value='');loadTrips();}
+
+async function init() {
+  [trucks, drivers, jobs] = await Promise.all([
+    fetch('/api/trucks').then(r=>r.json()),
+    fetch('/api/drivers').then(r=>r.json()),
+    fetch('/api/jobs').then(r=>r.json())
+  ]);
+  const tOpts = trucks.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
+  const dOpts = drivers.map(d=>`<option value="${d.id}">${d.name}</option>`).join('');
+  const jOpts = jobs.map(j=>`<option value="${j.id}">${j.title}</option>`).join('');
+  document.getElementById('fTruck').innerHTML = '<option value="">All Trucks</option>' + tOpts;
+  document.getElementById('fDriver').innerHTML = '<option value="">All Drivers</option>' + dOpts;
+  document.getElementById('tTruck').innerHTML = tOpts;
+  document.getElementById('tDriver').innerHTML = '<option value="">— None —</option>' + dOpts;
+  document.getElementById('tJob').innerHTML = '<option value="">— No Job —</option>' + jOpts;
+  loadTrips();
+}
+
+async function loadTrips() {
+  const params = new URLSearchParams();
+  const fTruck = document.getElementById('fTruck').value;
+  const fDriver = document.getElementById('fDriver').value;
+  const fStatus = document.getElementById('fStatus').value;
+  const fFrom = document.getElementById('fFrom').value;
+  const fTo = document.getElementById('fTo').value;
+  if (fTruck) params.set('truck_id', fTruck);
+  if (fDriver) params.set('driver_id', fDriver);
+  if (fStatus) params.set('status', fStatus);
+  if (fFrom) params.set('from', fFrom);
+  if (fTo) params.set('to', fTo);
+  const trips = await fetch('/api/trips?' + params).then(r=>r.json());
+
+  // Stats
+  const completed = trips.filter(t=>t.status==='completed');
+  const totalQty = trips.reduce((s,t)=>s+(parseFloat(t.quantity)||0),0);
+  document.getElementById('tripStats').innerHTML = `
+    <div class="stat-card"><div class="stat-number">${trips.length}</div><div class="stat-label">Total Trips</div></div>
+    <div class="stat-card"><div class="stat-number blue">${trips.filter(t=>t.status==='in_progress').length}</div><div class="stat-label">In Progress</div></div>
+    <div class="stat-card"><div class="stat-number">${completed.length}</div><div class="stat-label">Completed</div></div>
+    <div class="stat-card"><div class="stat-number orange">${totalQty.toFixed(1)}</div><div class="stat-label">Total Material</div></div>
+  `;
+
+  const tbody = document.getElementById('tripsBody');
+  if (!trips.length) { tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--muted);">No trips found.</td></tr>'; return; }
+  tbody.innerHTML = trips.map(t => `
+    <tr>
+      <td><strong>${t.truck_name||'—'}</strong></td>
+      <td>${t.driver_name||'—'}</td>
+      <td style="font-size:.82rem;">${t.job_title||'—'}</td>
+      <td>${t.material||'—'}</td>
+      <td>${t.quantity||0} ${t.unit||''}</td>
+      <td style="font-size:.82rem;">${fmt(t.start_time)}</td>
+      <td style="font-size:.82rem;">${fmt(t.end_time)}</td>
+      <td style="font-size:.82rem;">${duration(t.start_time,t.end_time)}</td>
+      <td><span class="badge badge-${t.status}">${t.status}</span></td>
+      <td style="display:flex;gap:.3rem;flex-wrap:wrap;">
+        <button class="btn btn-outline btn-sm" onclick="openTripModal('${t.id}')">Edit</button>
+        ${t.status==='in_progress'?`<button class="btn btn-primary btn-sm" onclick="completeTrip('${t.id}')">✓ Done</button>`:''}
+      </td>
+    </tr>`).join('');
+}
+
+function openTripModal(id=null) {
+  editTripId = id;
+  document.getElementById('tripModalTitle').textContent = id ? 'Edit Trip' : 'Log Trip';
+  if (!id) {
+    ['tId','tMaterial','tNotes','tEnd'].forEach(f=>document.getElementById(f).value='');
+    document.getElementById('tQty').value=0;
+    document.getElementById('tStatus').value='in_progress';
+  } else {
+    fetch('/api/trips').then(r=>r.json()).then(trips=>{
+      const t=trips.find(x=>x.id===id); if(!t) return;
+      document.getElementById('tId').value=t.id;
+      document.getElementById('tTruck').value=t.truck_id;
+      document.getElementById('tDriver').value=t.driver_id||'';
+      document.getElementById('tJob').value=t.job_id||'';
+      document.getElementById('tMaterial').value=t.material||'';
+      document.getElementById('tQty').value=t.quantity||0;
+      document.getElementById('tUnit').value=t.unit||'yards';
+      document.getElementById('tStatus').value=t.status;
+      document.getElementById('tEnd').value=t.end_time?t.end_time.slice(0,16):'';
+      document.getElementById('tNotes').value=t.notes||'';
+    });
+  }
+  document.getElementById('tripModal').classList.add('open');
+}
+
+async function saveTrip() {
+  const body = {
+    truck_id: document.getElementById('tTruck').value,
+    driver_id: document.getElementById('tDriver').value,
+    job_id: document.getElementById('tJob').value,
+    material: document.getElementById('tMaterial').value.trim(),
+    quantity: parseFloat(document.getElementById('tQty').value)||0,
+    unit: document.getElementById('tUnit').value,
+    status: document.getElementById('tStatus').value,
+    end_time: document.getElementById('tEnd').value,
+    notes: document.getElementById('tNotes').value.trim()
+  };
+  if (!body.truck_id) return toast('Select a truck.', true);
+  const headers = {'Content-Type':'application/json','x-admin-token':sessionStorage.getItem('adminToken')||''};
+  if (editTripId) {
+    await fetch(`/api/trips/${editTripId}`, { method:'PUT', headers, body: JSON.stringify(body) });
+    toast('✅ Trip updated.');
+  } else {
+    await fetch('/api/trips', { method:'POST', headers, body: JSON.stringify(body) });
+    toast('✅ Trip logged.');
+  }
+  closeModal('tripModal'); loadTrips();
+}
+
+async function completeTrip(id) {
+  await fetch(`/api/trips/${id}`, {
+    method:'PUT',
+    headers:{'Content-Type':'application/json','x-admin-token':sessionStorage.getItem('adminToken')||''},
+    body: JSON.stringify({ status:'completed', end_time: new Date().toISOString() })
+  });
+  toast('✅ Trip completed.'); loadTrips();
+}
+
+function logout(){fetch('/api/auth/logout',{method:'POST',headers:{'x-admin-token':sessionStorage.getItem('adminToken')||''}});sessionStorage.removeItem('adminToken');location.replace('login.html');}
+init();
+</script>
+</body>
+</html>

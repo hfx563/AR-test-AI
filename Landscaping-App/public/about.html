@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About & Contact — GreenEdge</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav>
+  <a href="index.html" class="nav-logo">🌿 Green<span>Edge</span></a>
+  <div class="nav-links" id="navLinks">
+    <a href="index.html">Home</a>
+    <a href="dashboard.html">Truck Tracking</a>
+    <a href="admin.html">Admin</a>
+    <a href="about.html" class="active">About & Contact</a>
+  </div>
+  <button class="hamburger" onclick="document.getElementById('navLinks').classList.toggle('open')" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+<div class="hero" style="padding:3.5rem 1.5rem;">
+  <div class="hero-content">
+    <h1>About <span>GreenEdge</span></h1>
+    <p>Family-owned landscaping resources and supply company serving the region since 2009.</p>
+  </div>
+</div>
+<div class="section">
+  <p class="section-title">Our Story</p>
+  <p class="section-sub">Built on hard work, trust, and a love for the outdoors.</p>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:2rem;align-items:start;">
+    <div>
+      <p style="color:var(--muted);line-height:1.8;margin-bottom:1rem;">GreenEdge was founded in 2009 with a single truck and a commitment to quality supply. Today, we operate a full fleet delivering bulk materials, plants, and equipment to landscaping contractors across the region.</p>
+      <p style="color:var(--muted);line-height:1.8;">We invest in technology — including our NFC-based truck tracking system — to ensure every delivery is accountable, efficient, and on time.</p>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+      <div class="card" style="text-align:center;"><div style="font-size:2rem;font-weight:800;color:var(--green);">15+</div><div style="color:var(--muted);font-size:.85rem;">Years in Business</div></div>
+      <div class="card" style="text-align:center;"><div style="font-size:2rem;font-weight:800;color:var(--green);">500+</div><div style="color:var(--muted);font-size:.85rem;">Contractor Clients</div></div>
+      <div class="card" style="text-align:center;"><div style="font-size:2rem;font-weight:800;color:var(--green);">12</div><div style="color:var(--muted);font-size:.85rem;">Trucks in Fleet</div></div>
+      <div class="card" style="text-align:center;"><div style="font-size:2rem;font-weight:800;color:var(--green);">3</div><div style="color:var(--muted);font-size:.85rem;">Service Counties</div></div>
+    </div>
+  </div>
+</div>
+<div style="background:#f0f5f0;padding:3rem 1.5rem;">
+  <div style="max-width:1100px;margin:0 auto;">
+    <p class="section-title">Meet the Team</p>
+    <p class="section-sub">The people behind every great delivery.</p>
+    <div class="team-grid">
+      <div class="team-card card"><div class="team-avatar">👨</div><h4>Mike Hargrove</h4><p>Founder & CEO</p></div>
+      <div class="team-card card"><div class="team-avatar">👩</div><h4>Sarah Chen</h4><p>Operations Manager</p></div>
+      <div class="team-card card"><div class="team-avatar">👨</div><h4>Carlos Rivera</h4><p>Fleet & Logistics Lead</p></div>
+      <div class="team-card card"><div class="team-avatar">👩</div><h4>Dana Patel</h4><p>Contractor Relations</p></div>
+    </div>
+  </div>
+</div>
+<div class="section" id="contact">
+  <p class="section-title">Contact Us</p>
+  <p class="section-sub">Get in touch for pricing, bulk orders, or any questions.</p>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:2rem;align-items:start;">
+    <div class="card">
+      <div style="display:flex;flex-direction:column;gap:1rem;">
+        <div style="display:flex;gap:.75rem;"><span style="font-size:1.3rem;">📞</span><div><strong>Phone</strong><br><a href="tel:+15551234567" style="color:var(--green);">(555) 123-4567</a></div></div>
+        <div style="display:flex;gap:.75rem;"><span style="font-size:1.3rem;">✉️</span><div><strong>Email</strong><br><a href="mailto:info@greenedge.com" style="color:var(--green);">info@greenedge.com</a></div></div>
+        <div style="display:flex;gap:.75rem;"><span style="font-size:1.3rem;">📍</span><div><strong>Address</strong><br>123 Greenway Drive<br>Springfield, ST 00000</div></div>
+        <div style="display:flex;gap:.75rem;"><span style="font-size:1.3rem;">🚛</span><div><strong>Yard Hours</strong><br>Mon–Fri: 6am–5pm<br>Sat: 7am–2pm</div></div>
+        <div style="display:flex;gap:.75rem;"><span style="font-size:1.3rem;">🕐</span><div><strong>Office Hours</strong><br>Mon–Fri: 7am–6pm<br>Sat: 8am–4pm</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="color:var(--green-dark);margin-bottom:1.5rem;">Request a Quote</h3>
+      <form id="contactForm" onsubmit="submitContact(event)">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+          <div class="form-group"><label>First Name</label><input type="text" placeholder="John" required></div>
+          <div class="form-group"><label>Last Name</label><input type="text" placeholder="Smith" required></div>
+        </div>
+        <div class="form-group"><label>Email</label><input type="email" placeholder="john@example.com" required></div>
+        <div class="form-group"><label>Phone</label><input type="tel" placeholder="(555) 000-0000"></div>
+        <div class="form-group">
+          <label>Service Interested In</label>
+          <select><option>Bulk Materials</option><option>Plants & Sod</option><option>Material Delivery</option><option>Equipment Rental</option><option>Irrigation Supplies</option><option>Contractor Account</option><option>Other</option></select>
+        </div>
+        <div class="form-group"><label>Message</label><textarea placeholder="Tell us about your material or supply needs…" required></textarea></div>
+        <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">Send Request →</button>
+      </form>
+      <div id="formSuccess" style="display:none;background:#d4edda;color:#155724;padding:1rem;border-radius:8px;margin-top:1rem;text-align:center;">✅ Thanks! Our team will be in touch within 1 business day with pricing.</div>
+    </div>
+  </div>
+</div>
+<footer><p>© 2025 GreenEdge Landscaping Resources · <a href="index.html">Home</a> · <a href="dashboard.html">Truck Tracking</a></p></footer>
+<script>
+function submitContact(e) {
+  e.preventDefault();
+  document.getElementById('contactForm').style.display = 'none';
+  document.getElementById('formSuccess').style.display = 'block';
+}
+</script>
+</body>
+</html>

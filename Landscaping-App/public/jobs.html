@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Orders — GreenEdge Resources</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="auth.js"></script>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="nav-logo">🌿 Green<span>Edge</span></a>
+  <div class="nav-links" id="navLinks">
+    <a href="index.html">Home</a><a href="dashboard.html">Dashboard</a>
+    <a href="jobs.html" class="active">Orders</a><a href="trips.html">Deliveries</a>
+    <a href="drivers.html">Drivers</a><a href="maintenance.html">Maintenance</a>
+    <a href="invoices.html">Invoices</a><a href="admin.html">Admin</a><a href="about.html">Contact</a>
+    <a href="#" onclick="logout()" style="color:#ffaaaa;">Logout</a>
+  </div>
+  <button class="hamburger" onclick="document.getElementById('navLinks').classList.toggle('open')" aria-label="Menu"><span></span><span></span><span></span></button>
+</nav>
+
+<div class="section">
+  <div class="page-header">
+    <div><h1 class="section-title" style="margin-bottom:.25rem;">📋 Order Scheduling</h1><p class="section-sub" style="margin-bottom:0;">Assign and manage material delivery & pickup orders</p></div>
+    <button class="btn btn-primary" onclick="openJobModal()">+ New Order</button>
+  </div>
+
+  <div style="display:flex;gap:.5rem;margin-bottom:1.5rem;flex-wrap:wrap;">
+    <select id="filterStatus" onchange="loadJobs()" style="width:auto;padding:.4rem .7rem;font-size:.85rem;">
+      <option value="">All Status</option>
+      <option value="pending">Pending</option>
+      <option value="in_progress">In Progress</option>
+      <option value="completed">Completed</option>
+      <option value="cancelled">Cancelled</option>
+    </select>
+    <select id="filterType" onchange="loadJobs()" style="width:auto;padding:.4rem .7rem;font-size:.85rem;">
+      <option value="">All Types</option>
+      <option value="delivery">Delivery</option>
+      <option value="disposal">Pickup</option>
+      <option value="service">Rental</option>
+    </select>
+    <input type="date" id="filterDate" onchange="loadJobs()" style="width:auto;padding:.4rem .7rem;font-size:.85rem;">
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Title</th><th>Customer</th><th>Type</th><th>Material</th><th>Truck</th><th>Driver</th><th>Scheduled</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="jobsBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Job Modal -->
+<div class="modal-overlay" id="jobModal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="jobModalTitle">New Order</h3><button class="modal-close" onclick="closeModal('jobModal')">✕</button></div>
+    <input type="hidden" id="jId">
+    <div class="form-row">
+      <div class="form-group"><label>Order Title *</label><input type="text" id="jTitle" placeholder="e.g. Mulch delivery - Oak St"></div>
+      <div class="form-group"><label>Customer</label><input type="text" id="jCustomer" placeholder="Customer name"></div>
+    </div>
+    <div class="form-group"><label>Site Address</label><input type="text" id="jAddress" placeholder="123 Main St, City"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Site Latitude</label><input type="number" id="jLat" placeholder="e.g. 40.7128" step="any"></div>
+      <div class="form-group"><label>Site Longitude</label><input type="number" id="jLng" placeholder="e.g. -74.0060" step="any"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Order Type</label>
+        <select id="jType"><option value="delivery">Delivery</option><option value="disposal">Disposal</option><option value="service">Service</option></select>
+      </div>
+      <div class="form-group"><label>Scheduled Date/Time</label><input type="datetime-local" id="jScheduled"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Material</label><input type="text" id="jMaterial" placeholder="e.g. Mulch, Soil, Debris"></div>
+      <div class="form-group"><label>Quantity</label>
+        <div style="display:flex;gap:.5rem;">
+          <input type="number" id="jQty" placeholder="0" style="flex:1;">
+          <select id="jUnit" style="width:auto;"><option>yards</option><option>tons</option><option>bags</option><option>loads</option></select>
+        </div>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Assign Truck</label><select id="jTruck"><option value="">— Unassigned —</option></select></div>
+      <div class="form-group"><label>Assign Driver</label><select id="jDriver"><option value="">— Unassigned —</option></select></div>
+    </div>
+    <div class="form-group"><label>Status</label>
+      <select id="jStatus"><option value="pending">Pending</option><option value="in_progress">In Progress</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option></select>
+    </div>
+    <div class="form-group"><label>Notes</label><textarea id="jNotes" placeholder="Additional notes…"></textarea></div>
+    <div style="display:flex;gap:.75rem;justify-content:flex-end;margin-top:1rem;">
+      <button class="btn btn-outline" onclick="closeModal('jobModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveJob()">Save Order</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<footer><p>© 2025 GreenEdge Landscaping Resources · <a href="index.html">Home</a></p></footer>
+
+<script>
+let trucks = [], drivers = [], editJobId = null;
+function fmt(ts) { return ts ? new Date(ts).toLocaleString() : '—'; }
+function toast(msg, err=false) {
+  const t = document.getElementById('toast'); t.textContent = msg;
+  t.style.background = err ? 'var(--red)' : 'var(--green-dark)';
+  t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3000);
+}
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+async function init() {
+  [trucks, drivers] = await Promise.all([fetch('/api/trucks').then(r=>r.json()), fetch('/api/drivers').then(r=>r.json())]);
+  const tOpts = trucks.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
+  const dOpts = drivers.map(d=>`<option value="${d.id}">${d.name}</option>`).join('');
+  document.getElementById('jTruck').innerHTML = '<option value="">— Unassigned —</option>' + tOpts;
+  document.getElementById('jDriver').innerHTML = '<option value="">— Unassigned —</option>' + dOpts;
+  loadJobs();
+}
+
+async function loadJobs() {
+  const status = document.getElementById('filterStatus').value;
+  const type = document.getElementById('filterType').value;
+  let jobs = await fetch('/api/jobs').then(r=>r.json());
+  if (status) jobs = jobs.filter(j=>j.status===status);
+  if (type) jobs = jobs.filter(j=>j.job_type===type);
+  const tbody = document.getElementById('jobsBody');
+  if (!jobs.length) { tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);">No jobs found.</td></tr>'; return; }
+  tbody.innerHTML = jobs.map(j => {
+    const truck = trucks.find(t=>t.id===j.truck_id);
+    const driver = drivers.find(d=>d.id===j.driver_id);
+    return `<tr>
+      <td><strong>${j.title}</strong></td>
+      <td>${j.customer||'—'}</td>
+      <td><span class="badge badge-${j.job_type==='delivery'?'entry':'exit'}">${j.job_type}</span></td>
+      <td>${j.material||'—'} ${j.quantity?j.quantity+' '+j.unit:''}</td>
+      <td>${truck?.name||'—'}</td>
+      <td>${driver?.name||'—'}</td>
+      <td style="font-size:.82rem;">${fmt(j.scheduled_at)}</td>
+      <td><span class="badge badge-${j.status}">${j.status}</span></td>
+      <td style="display:flex;gap:.3rem;flex-wrap:wrap;">
+        <button class="btn btn-outline btn-sm" onclick="openJobModal('${j.id}')">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteJob('${j.id}')">Del</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function openJobModal(id=null) {
+  editJobId = id;
+  document.getElementById('jobModalTitle').textContent = id ? 'Edit Job' : 'New Job';
+  if (!id) {
+    ['jId','jTitle','jCustomer','jAddress','jLat','jLng','jMaterial','jNotes'].forEach(f=>document.getElementById(f).value='');
+    document.getElementById('jQty').value = 0;
+    document.getElementById('jType').value = 'delivery';
+    document.getElementById('jStatus').value = 'pending';
+    document.getElementById('jTruck').value = '';
+    document.getElementById('jDriver').value = '';
+  } else {
+    fetch('/api/jobs').then(r=>r.json()).then(jobs => {
+      const j = jobs.find(x=>x.id===id);
+      if (!j) return;
+      document.getElementById('jId').value = j.id;
+      document.getElementById('jTitle').value = j.title;
+      document.getElementById('jCustomer').value = j.customer||'';
+      document.getElementById('jAddress').value = j.site_address||'';
+      document.getElementById('jLat').value = j.site_lat||'';
+      document.getElementById('jLng').value = j.site_lng||'';
+      document.getElementById('jType').value = j.job_type||'delivery';
+      document.getElementById('jMaterial').value = j.material||'';
+      document.getElementById('jQty').value = j.quantity||0;
+      document.getElementById('jUnit').value = j.unit||'yards';
+      document.getElementById('jTruck').value = j.truck_id||'';
+      document.getElementById('jDriver').value = j.driver_id||'';
+      document.getElementById('jScheduled').value = j.scheduled_at ? j.scheduled_at.slice(0,16) : '';
+      document.getElementById('jStatus').value = j.status||'pending';
+      document.getElementById('jNotes').value = j.notes||'';
+    });
+  }
+  document.getElementById('jobModal').classList.add('open');
+}
+
+async function saveJob() {
+  const body = {
+    title: document.getElementById('jTitle').value.trim(),
+    customer: document.getElementById('jCustomer').value.trim(),
+    site_address: document.getElementById('jAddress').value.trim(),
+    site_lat: parseFloat(document.getElementById('jLat').value)||0,
+    site_lng: parseFloat(document.getElementById('jLng').value)||0,
+    job_type: document.getElementById('jType').value,
+    material: document.getElementById('jMaterial').value.trim(),
+    quantity: parseFloat(document.getElementById('jQty').value)||0,
+    unit: document.getElementById('jUnit').value,
+    truck_id: document.getElementById('jTruck').value,
+    driver_id: document.getElementById('jDriver').value,
+    scheduled_at: document.getElementById('jScheduled').value,
+    status: document.getElementById('jStatus').value,
+    notes: document.getElementById('jNotes').value.trim()
+  };
+  if (!body.title) return toast('Title is required.', true);
+  const url = editJobId ? `/api/jobs/${editJobId}` : '/api/jobs';
+  const r = await fetch(url, { method: editJobId?'PUT':'POST', headers: {'Content-Type':'application/json','x-admin-token':sessionStorage.getItem('adminToken')||''}, body: JSON.stringify(body) });
+  if (!r.ok) return toast('Error saving job.', true);
+  toast(editJobId ? '✅ Job updated.' : '✅ Job created.');
+  closeModal('jobModal'); loadJobs();
+}
+
+async function deleteJob(id) {
+  if (!confirm('Delete this job?')) return;
+  await fetch(`/api/jobs/${id}`, { method: 'DELETE', headers: {'x-admin-token':sessionStorage.getItem('adminToken')||''} });
+  toast('🗑️ Job deleted.'); loadJobs();
+}
+
+function logout(){fetch('/api/auth/logout',{method:'POST',headers:{'x-admin-token':sessionStorage.getItem('adminToken')||''}});sessionStorage.removeItem('adminToken');location.replace('login.html');}
+init();
+</script>
+</body>
+</html>
