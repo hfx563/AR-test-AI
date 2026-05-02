@@ -1,6 +1,6 @@
 // Validator Unit Tests
-import validator from '../src/utils/validator';
-import { AppError } from '../src/core/errorHandler';
+const { AppError } = require('../src/core/errorHandler.cjs');
+const validator = require('../src/utils/validator.cjs');
 
 describe('Validator', () => {
     describe('sanitizeHTML', () => {

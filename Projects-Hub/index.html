@@ -355,8 +355,11 @@
     document.getElementById(`status-${i}`).textContent = 'checking…';
 
     try {
-      await fetch(url, { method: 'HEAD', mode: 'no-cors', cache: 'no-store', signal: AbortSignal.timeout(8000) });
+      const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`, {
+        method: 'HEAD', cache: 'no-store', signal: AbortSignal.timeout(8000)
+      });
       const ms = Date.now() - start;
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       checks[i]++;
 
       document.getElementById(`dot-${i}`).className = 'status-dot ok';
@@ -367,7 +370,7 @@
       document.getElementById(`uptime-${i}`).textContent = checks[i] + ' checks ok';
       document.getElementById(`checked-${i}`).textContent = new Date().toTimeString().split(' ')[0];
 
-      addLog(name, 'ok', `HTTP 200 · ${ms}ms · operational`);
+      addLog(name, 'ok', `HTTP ${res.status} · ${ms}ms · operational`);
     } catch(e) {
       checks[i] = 0;
       const isTimeout = e.name === 'TimeoutError' || e.name === 'AbortError';
@@ -382,7 +385,7 @@
       document.getElementById(`uptime-${i}`).textContent = '0 checks ok';
       document.getElementById(`checked-${i}`).textContent = new Date().toTimeString().split(' ')[0];
 
-      addLog(name, cls, isTimeout ? 'TIMEOUT >8000ms · degraded' : 'UNREACHABLE · offline');
+      addLog(name, cls, isTimeout ? 'TIMEOUT >8000ms · degraded' : `${e.message} · offline`);
     }
 
     updateSummary();
